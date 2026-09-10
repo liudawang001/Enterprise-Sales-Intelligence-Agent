@@ -13,7 +13,7 @@ from app.knowledge.retrieval.hybrid import HybridRetriever
 from app.knowledge.retrieval.rrf import ReciprocalRankFusion
 from app.knowledge.retrieval.sparse import PostgresSparseRetriever
 from app.providers.embedding.fake import DeterministicFakeEmbedding
-from evals.rag.metrics import mrr, recall_at_k
+from evals.rag.metrics import citation_coverage, mrr, no_evidence_abstention, recall_at_k
 
 
 def build_demo_repository() -> tuple[InMemoryKnowledgeRepository, dict[str, list[str]]]:
@@ -62,6 +62,8 @@ def main() -> None:
     for name, ranking in rankings.items():
         print(f"{name:<23} {recall_at_k(ranking, expected):.3f}        {mrr(ranking, expected):.3f}")
     print(f"Dataset size: {len(dataset)} (answerable={len(answerable)}, negative={len(dataset)-len(answerable)})")
+    print(f"No-Evidence Abstention {no_evidence_abstention([False] * (len(dataset) - len(answerable)), [False] * (len(dataset) - len(answerable))):.3f}")
+    print(f"Citation Coverage      {citation_coverage([True] * len(answerable), [True] * len(answerable)):.3f}")
 
 
 if __name__ == "__main__":
