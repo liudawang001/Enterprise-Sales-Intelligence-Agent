@@ -1,0 +1,1 @@
+"""Requirement collection subgraph."""

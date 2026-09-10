@@ -1,0 +1,1 @@
+"""Mock business planning subgraph."""

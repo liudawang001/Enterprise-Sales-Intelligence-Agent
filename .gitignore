@@ -1,0 +1,14 @@
+# Local project documentation (do not publish)
+docs/
+
+# macOS metadata
+.DS_Store
+
+.env
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.idea/
+.vscode/

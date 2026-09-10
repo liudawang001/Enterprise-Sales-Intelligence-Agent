@@ -1,0 +1,1 @@
+"""Mock enterprise research subgraph."""
