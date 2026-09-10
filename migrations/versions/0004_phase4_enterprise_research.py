@@ -3,8 +3,8 @@
 Revision ID: 0004_phase4_enterprise_research
 Revises: 0003_phase3_rules_criteria
 """
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision = "0004_phase4_enterprise_research"
