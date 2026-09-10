@@ -16,7 +16,7 @@ def compose_lead_response(state: AgentState, deps: AgentDependencies) -> dict:
         "response_text": (
             "已根据当前条件完成企业潜客发现。\n\n"
             f"业务：{task.business}\n区域：{task.region}\n目标数量：{task.target_count}\n\n"
-            f"当前返回{len(leads)}条带来源的候选企业，其中研究优先级最高的是{top_name}。\n\n"
-            "候选信息仍为 Provisional；正式实体归一化、字段级证据核验和最终 Lead Score 将在 Phase 5 完成。"
+            f"当前返回{len(leads)}条已归一化、字段级核验并完成确定性评分的企业，其中优先级最高的是{top_name}。\n\n"
+            "结果保留 Evidence 来源、字段冲突状态与评分组件，可通过企业和评分 API 逐层追溯。"
         ),
     }

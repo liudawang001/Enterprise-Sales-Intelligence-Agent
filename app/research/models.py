@@ -149,6 +149,10 @@ class RawEnterpriseCandidate(BaseModel):
     research_run_id: str
     source_provider: str
     source_entity_id: str | None = None
+    unified_social_credit_code: str | None = None
+    provider_group_id: str | None = None
+    provider_relation: str | None = None
+    parent_source_entity_id: str | None = None
     source_name: str
     normalized_name: str
     source_url: str | None = None

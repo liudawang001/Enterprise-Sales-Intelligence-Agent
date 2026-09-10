@@ -58,6 +58,16 @@ class AgentState(TypedDict, total=False):
     candidate_count: int
     verified_set_id: str | None
     verified_count: int
+    resolution_run_id: str | None
+    canonical_enterprise_ids: list[str]
+    verification_run_id: str | None
+    verified_profile_ids: list[str]
+    unresolved_enterprise_ids: list[str]
+    conflicting_enterprise_ids: list[str]
+    verification_round: int
+    verification_max_rounds: int
+    lead_set_id: str | None
+    scoring_profile_id: str | None
     mutation_scope: str | None
     mutation_reason: str | None
     lead_results: list[dict]

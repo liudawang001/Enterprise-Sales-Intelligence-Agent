@@ -256,6 +256,13 @@ class ResearchService:
                     research_run_id=run_id,
                     source_provider=result.provider,
                     source_entity_id=str(row.get("id")) if row.get("id") else None,
+                    unified_social_credit_code=row.get("unified_social_credit_code")
+                    or row.get("credit_code"),
+                    provider_group_id=row.get("provider_group_id")
+                    or row.get("group_id"),
+                    provider_relation=row.get("provider_relation"),
+                    parent_source_entity_id=row.get("parent_source_entity_id")
+                    or row.get("parent_id"),
                     source_name=name,
                     normalized_name=normalize_name(name),
                     source_url=row.get("url") or row.get("website"),
@@ -413,6 +420,10 @@ class ResearchService:
                             "address",
                             "public_phone",
                             "locations",
+                            "unified_social_credit_code",
+                            "provider_group_id",
+                            "provider_relation",
+                            "parent_source_entity_id",
                         )
                         if result.data.get(key) is not None
                     }
@@ -420,6 +431,17 @@ class ResearchService:
                         update={**updates, "status": CandidateStatus.ENRICHED}
                     )
                     self.repository.save_candidate(item)
+                    self.repository.save_source(
+                        SourceRecord(
+                            research_run_id=run_id,
+                            candidate_id=cid,
+                            provider=self.providers.enterprise.name,
+                            source_type=ResearchSourceType.ENTERPRISE_DATABASE,
+                            source_id=item.source_entity_id,
+                            payload_json=result.data,
+                            http_status=200,
+                        )
+                    )
             if item.office_count is None:
                 region = self.region_resolver.resolve(item.region or "")
                 request = MapSearchRequest(
@@ -734,6 +756,153 @@ class ResearchService:
             )
             for v in self.repository.get_candidates(candidate_set_id)
         ]
+
+    async def targeted_enrich_fields(
+        self,
+        run_id: str,
+        candidate_id: str,
+        fields: list[str],
+        *,
+        max_calls: int = 3,
+    ) -> list[SourceRecord]:
+        """Call only providers capable of filling the explicitly requested fields."""
+        run = self.repository.runs[run_id]
+        item = self.repository.candidates[candidate_id]
+        created: list[SourceRecord] = []
+        calls = 0
+        enterprise_fields = {
+            "legal_name",
+            "unified_social_credit_code",
+            "industry",
+            "company_scale",
+            "company_status",
+            "employee_count",
+            "member_count",
+            "branch_count",
+        }
+        if set(fields) & enterprise_fields and item.source_entity_id and calls < max_calls:
+            calls += 1
+            request = EnterpriseProfileRequest(company_id=item.source_entity_id)
+            result = await self._runtimes[run_id].execute(
+                research_run_id=run_id,
+                task_id=run.task_id,
+                query_id=None,
+                provider=self.providers.enterprise.name,
+                operation="enterprise_profile",
+                arguments=request.model_dump(),
+                call=lambda: self.providers.enterprise.get_company_profile(request),
+            )
+            if result.status == ToolStatus.SUCCESS and isinstance(result.data, dict):
+                created.append(
+                    self.repository.save_source(
+                        SourceRecord(
+                            research_run_id=run_id,
+                            candidate_id=candidate_id,
+                            provider=self.providers.enterprise.name,
+                            source_type=ResearchSourceType.ENTERPRISE_DATABASE,
+                            source_id=item.source_entity_id,
+                            payload_json={
+                                key: value
+                                for key, value in result.data.items()
+                                if key in fields
+                            },
+                            http_status=200,
+                        )
+                    )
+                )
+        if set(fields) & {"address", "office_count"} and calls < max_calls:
+            calls += 1
+            region = self.region_resolver.resolve(item.region or "")
+            request = MapSearchRequest(
+                keywords=item.source_name, region=region.name, adcode=region.adcode
+            )
+            result = await self._runtimes[run_id].execute(
+                research_run_id=run_id,
+                task_id=run.task_id,
+                query_id=None,
+                provider=self.providers.map.name,
+                operation="map",
+                arguments=request.model_dump(),
+                call=lambda: self.providers.map.search_places(request),
+            )
+            if result.status == ToolStatus.SUCCESS:
+                rows = _rows(result.data)
+                for row in rows:
+                    created.append(
+                        self.repository.save_source(
+                            SourceRecord(
+                                research_run_id=run_id,
+                                candidate_id=candidate_id,
+                                provider=self.providers.map.name,
+                                source_type=ResearchSourceType.MAP_POI,
+                                source_id=row.get("id"),
+                                payload_json=row,
+                                http_status=200,
+                            )
+                        )
+                    )
+        if "website" in fields and not item.website_candidate and calls < max_calls:
+            calls += 1
+            request = WebSearchRequest(query=f'"{item.source_name}" 官网', max_results=5)
+            result = await self._runtimes[run_id].execute(
+                research_run_id=run_id,
+                task_id=run.task_id,
+                query_id=None,
+                provider=self.providers.web_search.name,
+                operation="web_search",
+                arguments=request.model_dump(),
+                call=lambda: self.providers.web_search.search(request),
+            )
+            choice = (
+                WebsiteDiscoveryService.choose(item.source_name, _rows(result.data))
+                if result.status == ToolStatus.SUCCESS
+                else None
+            )
+            if choice:
+                item = item.model_copy(update={"website_candidate": str(choice.url)})
+                self.repository.save_candidate(item)
+                created.append(
+                    self.repository.save_source(
+                        SourceRecord(
+                            research_run_id=run_id,
+                            candidate_id=candidate_id,
+                            provider=self.providers.web_search.name,
+                            source_type=ResearchSourceType.WEBSITE_CANDIDATE,
+                            source_url=str(choice.url),
+                            payload_json={"website": str(choice.url)},
+                            http_status=200,
+                        )
+                    )
+                )
+        if "public_phone" in fields and item.website_candidate and calls < max_calls:
+            calls += 1
+            request = WebFetchRequest(url=item.website_candidate)
+            result = await self._runtimes[run_id].execute(
+                research_run_id=run_id,
+                task_id=run.task_id,
+                query_id=None,
+                provider=self.providers.web_fetch.name,
+                operation="web_fetch",
+                arguments=request.model_dump(mode="json"),
+                call=lambda: self.providers.web_fetch.fetch(request),
+            )
+            if result.status == ToolStatus.SUCCESS:
+                text = str((result.data or {}).get("markdown", ""))[:30000]
+                created.append(
+                    self.repository.save_source(
+                        SourceRecord(
+                            research_run_id=run_id,
+                            candidate_id=candidate_id,
+                            provider=self.providers.web_fetch.name,
+                            source_type=ResearchSourceType.PUBLIC_WEBPAGE,
+                            source_url=item.website_candidate,
+                            content_text=text,
+                            content_hash=hashlib.sha256(text.encode()).hexdigest(),
+                            http_status=200,
+                        )
+                    )
+                )
+        return created
 
     def discover(
         self, *, region: str, criteria: LeadCriteria | None = None

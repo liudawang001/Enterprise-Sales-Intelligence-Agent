@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     research_map_concurrency: int = 5
     research_web_search_concurrency: int = 8
     research_web_fetch_concurrency: int = 4
+    verification_max_extra_calls: int = 100
+    verification_max_calls_per_entity: int = 3
+    verification_max_rounds: int = 1
 
 
 @lru_cache

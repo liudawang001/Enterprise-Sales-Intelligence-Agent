@@ -2,13 +2,15 @@
 
 **Enterprise Sales Intelligence Agent（政企营销智能体）** 是一套面向政企营销场景的状态化智能 Agent。系统通过 RAG 获取产品、套餐和营销活动知识，结合多轮对话形成结构化营销任务，并编排企业信息、地图、Web Search 与企业官网等多源工具，实现企业潜客发现、情报补全、实体归一化、证据核验、潜客评分及 Excel 交付。
 
-## Phase 1 / Phase 2 / Phase 3 / Phase 4 范围
+## Phase 1 / Phase 2 / Phase 3 / Phase 4 / Phase 5 范围
 
 Phase 1 实现 LangGraph Agent Runtime 与离线 Mock Workflow：多 Intent 入口、结构化 `LeadTask`、Required Slot 校验、真实 `interrupt()` / `Command(resume=...)`、MemorySaver、Mock Business Planning、Mock Research、Mock Lead Scoring、Mutation Skeleton 和 FastAPI `/api/chat`。
 
 Phase 2 将 BusinessQA 升级为真实可追溯的 RAG Knowledge Engine：PDF 上传与按页解析、结构优先 Chunking、SHA-256 幂等、Embedding 抽象、Dense + 中文 Sparse 检索、Metadata/有效期/区域过滤、RRF、Reranker、No-Evidence Gate、页级 Citation 和离线 Evaluation。默认 Demo 使用内存 Repository 与确定性 FakeEmbedding；配置 PostgreSQL/pgvector 后可执行 Alembic migration 和 PGVectorStore 适配。
 
 Phase 3 将业务知识编译为带来源、版本和冲突处理的 `LeadCriteria`。Phase 4 将该 Criteria 编译为有界 `SearchPlan`，通过企业数据、地图、Web Search 和 Web Fetch Provider 执行候选发现、低成本补全、Hard Filter 与有限深研。默认配置使用 Fake Provider，完整走相同 Provider/预算/来源链路且不消耗外部 credits；配置合法凭据后切换到真实适配器。
+
+Phase 5 将多源 Candidate 转换为 `CanonicalEnterprise`，对每个业务字段独立建立 Evidence、归一化、冲突检测和主值选择，生成 Task-aware `VerifiedEnterpriseProfile`。最终排序由版本化的确定性 Scoring Profile 计算，LLM 仅能解释既有分数和合法 Evidence ID。
 
 ## 当前架构
 
@@ -22,12 +24,36 @@ MainGraph: load_context -> classify_intent -> Intent Router
                      |
              interrupt / resume
                      |
-       BusinessPlanning -> Research -> Score -> Response
+       BusinessPlanning -> Research -> Verification -> Score -> Response
 ```
 
 `RequirementGraph` 收集 `business`、`region`、`target_count`。缺失时调用 LangGraph `interrupt()`，同一 `session_id` 同时作为 `thread_id`，后续请求通过 `Command(resume={"text": ...})` 恢复，不创建第二个任务。`task_id` 由 Repository 单独生成 UUID。
 
-ResearchGraph 不再内置固定企业；所有 Candidate 必须来自 Provider 返回并绑定 `SourceRecord`。Graph State 只保留 run/plan/set/batch 引用和计数，Candidate、Source、ToolRun 与集合 lineage 留在 Repository 边界。`MockScoringService` 仍是前序阶段的演示评分，并非正式 Lead Score。
+ResearchGraph 不再内置固定企业；所有 Candidate 必须来自 Provider 返回并绑定 `SourceRecord`。Graph State 只保留 run/plan/set/batch 引用和计数，Candidate、Source、ToolRun 与集合 lineage 留在 Repository 边界。Phase 5 主链使用正式的确定性 `LeadScoringService`；`MockScoringService` 仅为前序阶段兼容保留。
+
+## Phase 5 Verification Architecture
+
+```text
+Researched Candidate Set
+  -> Resolution Blocking
+  -> deterministic matcher (credit code/provider relation/name/domain/phone/address)
+  -> bounded ambiguous resolver gate
+  -> CanonicalEnterprise + Candidate Link + Relation + Audit
+  -> SourceRecord -> field-level Evidence -> normalization
+  -> agreement/conflict/freshness/source-priority resolution
+  -> bounded targeted verification for MISSING/UNVERIFIED fields
+  -> VerifiedEnterpriseProfile + task-aware coverage
+  -> versioned deterministic score breakdown
+  -> grounded recommendation reason -> VerifiedLeadSet
+```
+
+不同且非空的统一社会信用代码是不可被 LLM 推翻的 Hard Negative。`BRANCH_OF`、`OFFICE_OF` 与 `SUBSIDIARY_OF` 始终保存为实体关系，不折叠为 `SAME_ENTITY`。字段冲突不会静默覆盖：例如官网电话 `021-1111` 与地图电话 `021-2222` 会保留两组 Evidence，字段状态为 `CONFLICTING`，展示主值仍按字段来源优先级、时效性和一致来源数选择。
+
+Evidence 的完整审计链为：`LeadScore -> ScoreComponentResult -> ResolvedField -> Evidence -> SourceRecord -> Provider/URL`。公开联系方式过滤会在 Evidence Extraction 再执行一次，不保存个人手机号或私人邮箱。办公点数量基于规范化地址和近似坐标去重，仅统计 Office/Branch，不使用搜索结果条数。
+
+内置 `GROUP_VNET` 与 `ENTERPRISE_DEDICATED_LINE` v1 Profile，组件包括 Business Fit、Office Distribution、Company Scale、Industry Preference、Location Fit、Evidence Confidence 与 Contact Completeness。缺失字段分别支持 `ZERO`、`NEUTRAL`、`REWEIGHT`；硬必需字段缺失返回 `NOT_SCORABLE` 和空分数。
+
+> 内置 Scoring Profile 是项目 Demo Marketing Model，不代表中国移动官方潜客评分标准。
 
 ## Phase 4 Research Architecture
 
@@ -72,6 +98,19 @@ GET /api/research/{research_run_id}/events
 
 候选 API 始终返回 `provisional: true`。Plan API 展示每个 Provider 的 pushdown、post-filter、enrichment 和实际 budget 使用量；events 端点以 SSE 返回当前研究阶段。
 
+## Verification and Score API
+
+```text
+GET /api/tasks/{task_id}/verification
+GET /api/enterprises/{enterprise_id}
+GET /api/enterprises/{enterprise_id}/relations
+GET /api/enterprises/{enterprise_id}/evidence
+GET /api/enterprises/{enterprise_id}/fields/{field_name}/evidence
+GET /api/tasks/{task_id}/scores
+GET /api/leads/{enterprise_id}/score
+GET /api/leads/{enterprise_id}/score/explain
+```
+
 ## Phase 2 RAG 架构
 
 ```text
@@ -92,7 +131,9 @@ docker compose up -d postgres
 alembic upgrade head
 ```
 
-Phase 4 migration `0004_phase4_enterprise_research` 新增 research run/plan/batch、candidate/set/member、source record 和 tool run 表。数据库集成测试使用 `TEST_DATABASE_URL`，没有配置时会跳过。
+Phase 4 migration `0004_phase4_enterprise_research` 新增 research run/plan/batch、candidate/set/member、source record 和 tool run 表。Phase 5 migration `0005_phase5_entity_evidence_scoring` 新增 canonical entity/link/relation/location、resolution/verification audit、field evidence/resolved profile、versioned scoring profile/score/reason/lead set 表。数据库集成测试使用 `TEST_DATABASE_URL`，没有配置时会跳过。
+
+迁移完成后运行 `python -m scripts.seed_demo_scoring_profiles`，可按 `business_code + version` 幂等写入两个不可变 Demo Profile；修改权重时必须创建新版本，脚本不会覆盖已有历史版本。
 
 ## PDF Upload Demo
 
@@ -141,6 +182,15 @@ python -m evals.research.run_research_eval
 
 当前固定结果：SearchPlan Schema Validity `1.000`、Hard Constraint Coverage `1.000`、Budget Validity `1.000`。Provider 真实结果会变化，不作为稳定 CI gate。
 
+Phase 5 固定评测：
+
+```bash
+python -m evals.entity.run_entity_eval
+python -m evals.phase5.run_evidence_scoring_eval
+```
+
+当前 54 个实体 Pair 的 Precision / Recall / F1 / SAME_ENTITY Precision 均为 `1.000`，不同信用代码 Hard Negative Accuracy 为 `1.000`。30 个 Evidence case 的 Conflict Detection、Primary Value Selection、Source Traceability 均为 `1.000`；30 个 Scoring case 的 Determinism、Monotonicity、Profile Reproducibility 与硬必需字段缺失 `NOT_SCORABLE` 正确率均为 `1.000`。这些是固定合成 Demo 数据集指标，不代表生产数据表现。
+
 ## 安装与启动
 
 ```bash
@@ -182,7 +232,7 @@ curl -X POST http://localhost:8000/api/chat \
   -d '{"session_id":"demo-001","message":"上海松江，50家"}'
 ```
 
-第二次返回 `COMPLETED`，默认 Fake Provider fixture 中包含五条带来源的 provisional Candidate；因少于目标 50，ResearchRun 状态为 `PARTIAL` 并带 `INSUFFICIENT_CANDIDATES`。也可以直接发送“帮我找上海松江50家集团V网客户”验证无中断路径。
+第二次返回 `COMPLETED`，默认 Fake Provider fixture 中包含五条带来源的 Candidate；因少于目标 50，ResearchRun 状态为 `PARTIAL` 并带 `INSUFFICIENT_CANDIDATES`，但现有 Candidate 仍继续完成实体归一、字段核验与确定性评分。也可以直接发送“帮我找上海松江50家集团V网客户”验证无中断路径。
 
 ## Phase 3 Business Rule & Lead Criteria Engine
 
@@ -214,8 +264,10 @@ python -m evals.rules.run_rule_eval
 
 ## 已完成与未实现
 
-已完成：Phase 1 Runtime、MainGraph、五个 SubGraph、Intent/Mutation Router、任务版本、MemorySaver、FastAPI；Phase 2 PDF Ingestion、Chunking、Embedding 抽象、Dense/Sparse/Hybrid Retrieval、RRF、Reranker、Citation、No-Evidence Gate、Evaluation 和回归测试。
+已完成：Phase 1 Runtime、MainGraph、Intent/Mutation Router、任务版本、MemorySaver、FastAPI；Phase 2 PDF Ingestion、Chunking、Embedding 抽象、Dense/Sparse/Hybrid Retrieval、RRF、Reranker、Citation、No-Evidence Gate、Evaluation 和回归测试。
 
 Phase 4 已实现可配置的真实企业 API、高德、Tavily 和 Firecrawl adapters，以及有界多源研究工作流。本次环境未配置任何第三方 Key，因此真实 external smoke 未执行，不能声明真实 Provider E2E 已成功。
 
-尚未实现：正式 Enterprise Entity Resolution、字段级 Evidence Verification/Conflict Resolution、Verified Confidence、正式 Lead Score、PostgreSQL TaskRepository、AsyncPostgresSaver、Redis 分布式限流、Langfuse 和正式 Excel 导出。这些属于后续 Phase。
+Phase 5 已实现 Entity Resolution、字段级 Evidence Verification/Conflict Resolution、Targeted Verification、Verified Profile/Coverage、版本化确定性 Lead Score、Grounded Explain、API、PostgreSQL schema/adapters 和固定评测。
+
+尚未实现的 Phase 6～8 能力：对话任务控制的完整局部失效重算、正式 Excel/UI 交付、CRM 写回、生产级 PostgreSQL TaskRepository/AsyncPostgresSaver、Redis 分布式限流、多租户权限、Langfuse 生产观测、BI Dashboard、机器学习评分模型与 GraphRAG。
