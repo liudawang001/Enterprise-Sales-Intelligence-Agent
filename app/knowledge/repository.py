@@ -41,6 +41,9 @@ class InMemoryKnowledgeRepository:
         for chunk in chunks:
             self.chunks[chunk.id] = deepcopy(chunk)
 
+    def count_chunks(self, document_id: UUID) -> int:
+        return sum(1 for chunk in self.chunks.values() if chunk.document_id == document_id)
+
     def list_chunks(self, document_id: UUID | None = None, knowledge_filter: KnowledgeFilter | None = None) -> list[KnowledgeChunk]:
         result: list[KnowledgeChunk] = []
         knowledge_filter = knowledge_filter or KnowledgeFilter()
