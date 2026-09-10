@@ -60,3 +60,15 @@ class KnowledgeQuery(BaseModel):
     as_of_date: date | None = None
     document_types: list[str] = Field(default_factory=list)
     current_only: bool = True
+
+
+class ParsedPage(BaseModel):
+    page_number: int
+    text: str
+    blocks: list[dict] = Field(default_factory=list)
+
+
+class ParsedDocument(BaseModel):
+    document_id: str
+    pages: list[ParsedPage]
+    metadata: dict = Field(default_factory=dict)
