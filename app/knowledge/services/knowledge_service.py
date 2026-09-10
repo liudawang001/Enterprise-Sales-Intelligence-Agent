@@ -50,7 +50,11 @@ class KnowledgeService:
         fused = self.hybrid.fusion.fuse(dense, sparse, top_k=12)
         if not fused:
             return [], ["NO_EVIDENCE"]
-        return fused[:top_k], []
+        terms = set(self.hybrid.sparse.tokenizer.tokenize(query.rewritten_query).split())
+        for hit in fused:
+            hit.rerank_score = float(len(terms & set(self.hybrid.sparse.tokenizer.tokenize(hit.content).split())))
+        reranked = sorted(fused, key=lambda hit: (hit.rerank_score or 0, hit.fusion_score or 0), reverse=True)
+        return reranked[:top_k], []
 
     def answer(self, question: str, query: KnowledgeQuery) -> dict:
         hits, warnings = self.retrieve(query)
