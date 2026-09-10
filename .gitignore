@@ -13,5 +13,6 @@ __pycache__/
 .idea/
 .vscode/
 data/uploads/
+data/demo_documents/*.pdf
 *.egg-info/
 .coverage
