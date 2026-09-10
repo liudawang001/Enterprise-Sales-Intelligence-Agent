@@ -32,6 +32,12 @@ class KnowledgeService:
             self.reranker,
         )
 
+    async def retrieve_business_context(self, business: str, *, region: str | None = None) -> list[dict]:
+        query = self.analyze_query(f"{business}适用对象和办理条件")
+        query = query.model_copy(update={"business": business, "region": region})
+        hits, _warnings = await self.retrieve_async(query, top_k=6)
+        return [{"chunk_id": hit.chunk_id, "document_id": hit.document_id, "content": hit.content, "page_start": hit.page_start, "page_end": hit.page_end} for hit in hits]
+
     def analyze_query(self, raw_query: str, *, context: list[str] | None = None) -> KnowledgeQuery:
         business = "集团V网" if "集团V网" in raw_query else ("企业专线" if "企业专线" in raw_query else None)
         region = "上海松江" if "松江" in raw_query else ("上海" if "上海" in raw_query else None)
