@@ -1,4 +1,5 @@
 from app.agent.dependencies import build_dependencies
+from app.agent.graph import build_main_graph
 from app.agent.subgraphs.requirement.graph import build_requirement_graph
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import Command
@@ -25,3 +26,22 @@ def test_interrupt_and_resume_same_thread_without_new_task():
     assert task_after.region == "上海松江"
     assert task_after.target_count == 50
     assert resumed["task_status"] == "RUNNING"
+
+
+def test_main_graph_resumes_original_task_to_completion() -> None:
+    deps = build_dependencies()
+    graph = build_main_graph(deps)
+    config = {"configurable": {"thread_id": "main-resume"}}
+
+    first = graph.invoke(
+        {"session_id": "main-resume", "incoming_text": "帮我找集团V网客户"},
+        config=config,
+    )
+    task_id = first["active_task_id"]
+    resumed = graph.invoke(Command(resume={"text": "上海松江，50家"}), config=config)
+
+    assert first["__interrupt__"]
+    assert resumed["active_task_id"] == task_id
+    assert resumed["task_status"] == "COMPLETED"
+    assert len(resumed["lead_results"]) == 5
+    assert task_id != "main-resume"

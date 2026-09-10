@@ -1,5 +1,6 @@
 import logging
 
+from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
 from app.agent.dependencies import AgentDependencies
@@ -80,4 +81,4 @@ def build_main_graph(deps: AgentDependencies, *, checkpointer=None):
     builder.add_edge("answer_lead_query", END)
     builder.add_edge("export_results", END)
     builder.add_edge("general_chat", END)
-    return builder.compile(checkpointer=checkpointer)
+    return builder.compile(checkpointer=checkpointer or MemorySaver())
