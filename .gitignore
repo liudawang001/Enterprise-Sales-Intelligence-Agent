@@ -12,3 +12,6 @@ __pycache__/
 .mypy_cache/
 .idea/
 .vscode/
+data/uploads/
+*.egg-info/
+.coverage

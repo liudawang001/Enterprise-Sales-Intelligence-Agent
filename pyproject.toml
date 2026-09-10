@@ -12,7 +12,19 @@ dependencies = [
     "uvicorn>=0.30",
     "langgraph>=0.2",
     "langchain-core>=0.3",
+    "langchain-postgres>=0.0.16",
+    "langchain-huggingface>=0.1",
     "pydantic>=2.7",
+    "pydantic-settings>=2.6",
+    "sqlalchemy[asyncio]>=2.0",
+    "alembic>=1.14",
+    "asyncpg>=0.30",
+    "psycopg[binary]>=3.2",
+    "pgvector>=0.3",
+    "pymupdf>=1.25",
+    "jieba>=0.42",
+    "sentence-transformers>=3.3",
+    "python-multipart>=0.0.18",
 ]
 
 [project.optional-dependencies]
@@ -21,6 +33,7 @@ dev = ["pytest>=8", "pytest-asyncio>=0.23", "httpx>=0.27"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = ["integration: requires PostgreSQL with pgvector"]
 
 [tool.setuptools.packages.find]
 include = ["app*"]
