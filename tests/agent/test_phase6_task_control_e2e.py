@@ -72,9 +72,11 @@ def test_noop_mutation_records_event_without_new_task_version():
     _invoke(graph, "noop", "帮我找上海松江3家集团V网企业")
     task = deps.task_repository.get_active_task("noop")
     version_count = len(deps.task_repository.list_versions(task.task_id))
+    snapshot_count = len(deps.execution_snapshot_repository.list_for_task(task.task_id))
 
     result = _invoke(graph, "noop", "还是3家")
 
     assert result["mutation_scope"] == "NONE"
     assert len(deps.task_repository.list_versions(task.task_id)) == version_count
+    assert len(deps.execution_snapshot_repository.list_for_task(task.task_id)) == snapshot_count
     assert result["mutation_id"] in deps.mutation_repository.mutations

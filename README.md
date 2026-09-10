@@ -2,7 +2,7 @@
 
 **Enterprise Sales Intelligence Agent（政企营销智能体）** 是一套面向政企营销场景的状态化智能 Agent。系统通过 RAG 获取产品、套餐和营销活动知识，结合多轮对话形成结构化营销任务，并编排企业信息、地图、Web Search 与企业官网等多源工具，实现企业潜客发现、情报补全、实体归一化、证据核验、潜客评分及 Excel 交付。
 
-## Phase 1 / Phase 2 / Phase 3 / Phase 4 / Phase 5 范围
+## Phase 1 / Phase 2 / Phase 3 / Phase 4 / Phase 5 / Phase 6 范围
 
 Phase 1 实现 LangGraph Agent Runtime 与离线 Mock Workflow：多 Intent 入口、结构化 `LeadTask`、Required Slot 校验、真实 `interrupt()` / `Command(resume=...)`、MemorySaver、Mock Business Planning、Mock Research、Mock Lead Scoring、Mutation Skeleton 和 FastAPI `/api/chat`。
 
@@ -11,6 +11,8 @@ Phase 2 将 BusinessQA 升级为真实可追溯的 RAG Knowledge Engine：PDF �
 Phase 3 将业务知识编译为带来源、版本和冲突处理的 `LeadCriteria`。Phase 4 将该 Criteria 编译为有界 `SearchPlan`，通过企业数据、地图、Web Search 和 Web Fetch Provider 执行候选发现、低成本补全、Hard Filter 与有限深研。默认配置使用 Fake Provider，完整走相同 Provider/预算/来源链路且不消耗外部 credits；配置合法凭据后切换到真实适配器。
 
 Phase 5 将多源 Candidate 转换为 `CanonicalEnterprise`，对每个业务字段独立建立 Evidence、归一化、冲突检测和主值选择，生成 Task-aware `VerifiedEnterpriseProfile`。最终排序由版本化的确定性 Scoring Profile 计算，LLM 仅能解释既有分数和合法 Evidence ID。
+
+Phase 6 将对话升级为多 Task、不可变 Task Version 和依赖感知的局部重执行系统。自然语言修改先经过 `TaskReferenceResolver`、`MutationPreview`、`TaskDiff / CriteriaDiff` 与 `ArtifactReuseContext`，再由确定性 `TaskMutationPlanner` 选择最小安全 Scope。旧执行可以完成并保留历史，但版本栅栏禁止它覆盖新版本的 current head。
 
 ## 当前架构
 
@@ -24,12 +26,63 @@ MainGraph: load_context -> classify_intent -> Intent Router
                      |
              interrupt / resume
                      |
-       BusinessPlanning -> Research -> Verification -> Score -> Response
+       BusinessPlanning -> Research -> Verification -> Score -> Promotion Guard
 ```
 
 `RequirementGraph` 收集 `business`、`region`、`target_count`。缺失时调用 LangGraph `interrupt()`，同一 `session_id` 同时作为 `thread_id`，后续请求通过 `Command(resume={"text": ...})` 恢复，不创建第二个任务。`task_id` 由 Repository 单独生成 UUID。
 
 ResearchGraph 不再内置固定企业；所有 Candidate 必须来自 Provider 返回并绑定 `SourceRecord`。Graph State 只保留 run/plan/set/batch 引用和计数，Candidate、Source、ToolRun 与集合 lineage 留在 Repository 边界。Phase 5 主链使用正式的确定性 `LeadScoringService`；`MockScoringService` 仅为前序阶段兼容保留。
+
+## Phase 6 Conversation Task Control
+
+同一 `thread_id` 可以拥有多个 `task_id`，每个 Task 的修改形成递增且不可覆盖的 `task_version`。任务可通过显式 ID、唯一业务名称或 Active Task 解析；多个候选无法消歧时触发 `TASK_SELECTION_REQUIRED`，并用原 `thread_id` 的 `Command(resume=...)` 继续。
+
+MutationGraph 的执行顺序为：
+
+```text
+resolve_target_task -> load_current_task -> parse/validate_mutation
+-> MutationPreview -> TaskDiff -> CriteriaDiff -> ArtifactReuseContext
+-> classify_invalidation -> ReexecutionPlan -> persist new Task Version
+```
+
+七个路由值及最小执行边界：
+
+| Scope | 执行范围 |
+|---|---|
+| `NONE` | 记录 no-op，不创建 Task Version 或新快照 |
+| `DISPLAY_ONLY` | 复用 Score Set，仅 Projection / Top N |
+| `RANK_ONLY` | 复用 Verified Profile，重新确定性评分 |
+| `FILTER_ONLY` | 复用 Raw/Researched Candidate Set，重新过滤及必要核验 |
+| `ENRICHMENT_REQUIRED` | 复用企业集合，仅定向补字段与重新核验 |
+| `DISCOVERY_REQUIRED` | 复用仍有效的 Business Planning，重新 Research |
+| `FULL_REPLAN` | 业务语义变化时从 Business Planning 完整重算 |
+
+Scope 由 `TaskDiff + CriteriaDiff + ArtifactReuseContext + SearchPlan.field_dependencies` 共同决定。例如删除仅在 post-filter 使用的员工规模条件可走 `FILTER_ONLY`；删除已下推到 Discovery 的行业条件必须走 `DISCOVERY_REQUIRED`。运行时若复用假设不成立，只允许记录原因后安全升级 Scope。
+
+每个新结果 head 保存 `TaskExecutionSnapshot`，串联 Criteria、SearchPlan、Raw/Filtered/Researched Candidate、Verified 与 Score Artifact。`ArtifactValidity` 区分 `CURRENT / REUSABLE / SUPERSEDED / INVALIDATED`。Promotion 前检查当前 Task Version；旧版本晚完成时保存为 `SUPERSEDED`，不会成为 current head。Discovery、Enrichment、Deep Research 与 Targeted Verification 的批次边界还会执行 cooperative superseded check。
+
+Phase 6 API：
+
+```text
+GET  /api/tasks
+GET  /api/tasks/{task_id}
+GET  /api/tasks/{task_id}/versions
+GET  /api/tasks/{task_id}/versions/{version}
+POST /api/tasks/{task_id}/activate
+POST /api/tasks/{task_id}/mutations
+GET  /api/tasks/{task_id}/mutations/{mutation_id}
+GET  /api/reexecution/{plan_id}
+```
+
+Lead Query 和 Export Request 都先解析 Task Reference，因此可以读取非 Active Task；Phase 6 Export 只解析 `task_id / task_version / lead_set_id`，不生成 Excel。
+
+Phase 6 固定评测：
+
+```bash
+python -m evals.mutation.run_mutation_eval
+```
+
+当前固定数据包含 60 个 Mutation Scope case、20 个 Artifact Reuse case 和 20 个 Version/Stale case。CI Gate 包括 Scope Accuracy、Unsafe Under-reexecution Rate、Unnecessary Full Replan Rate、Artifact Reuse Correctness、Version Fence Correctness 与 Mutation Idempotency；这些是确定性合成工程指标，不代表生产流量效果。
 
 ## Phase 5 Verification Architecture
 
@@ -207,6 +260,10 @@ pytest
 ```
 
 所有测试离线运行，不需要 OpenAI、高德或企业信息 API Key。
+
+## 当前阶段边界
+
+Phase 6 尚不包含正式 Excel 导出、React 营销工作台、生产级 `AsyncPostgresSaver`、Redis 分布式锁/取消、Langfuse 全量生产观测、多租户 RBAC 或 CRM 写回。这些仍属于 Phase 7 / Phase 8。
 
 默认 `pytest` 排除 external marker。仅在 `.env.example` 中五项真实 Provider 配置均已合法设置后，显式运行（会消耗第三方额度）：
 

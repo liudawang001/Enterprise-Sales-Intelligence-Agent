@@ -139,21 +139,35 @@ def make_promote_execution_snapshot(deps: AgentDependencies):
         task = deps.task_repository.get_task(state["active_task_id"])
         version = state.get("task_version", task.version)
         reuse = state.get("artifact_reuse_context") or {}
+        plan_id = state.get("reexecution_plan_id")
+        if state.get("mutation_scope") == "NONE":
+            current = deps.execution_snapshot_repository.current(task.task_id)
+            if plan_id:
+                plan = deps.mutation_repository.get_plan(plan_id)
+                if plan:
+                    deps.mutation_repository.save_plan(plan.model_copy(update={"status": ReexecutionPlanStatus.COMPLETED}))
+            return {"execution_snapshot_id": current.snapshot_id if current else None, "progress": {"event": "ARTIFACT_REUSED"}}
+        scope = state.get("mutation_scope")
+        partial = scope in {"DISPLAY_ONLY", "RANK_ONLY", "FILTER_ONLY", "ENRICHMENT_REQUIRED"}
+        criteria_snapshot_id = reuse.get("criteria_snapshot_id") if scope == "DISPLAY_ONLY" else state.get("criteria_snapshot_id")
+        search_plan_id = reuse.get("search_plan_id") if partial else state.get("search_plan_id")
+        raw_candidate_set_id = reuse.get("raw_candidate_set_id") if partial else state.get("raw_candidate_set_id")
+        filtered_candidate_set_id = state.get("filtered_candidate_set_id") if scope == "FILTER_ONLY" else reuse.get("filtered_candidate_set_id") if partial else state.get("filtered_candidate_set_id")
+        researched_candidate_set_id = reuse.get("researched_candidate_set_id") if partial else state.get("researched_candidate_set_id") or state.get("candidate_set_id")
         snapshot = TaskExecutionSnapshot(
             task_id=task.task_id,
             task_version=version,
-            criteria_snapshot_id=state.get("criteria_snapshot_id") or reuse.get("criteria_snapshot_id"),
-            search_plan_id=state.get("search_plan_id") or reuse.get("search_plan_id"),
-            raw_candidate_set_id=state.get("raw_candidate_set_id") or reuse.get("raw_candidate_set_id"),
-            filtered_candidate_set_id=state.get("filtered_candidate_set_id") or reuse.get("filtered_candidate_set_id"),
-            researched_candidate_set_id=state.get("researched_candidate_set_id") or state.get("candidate_set_id") or reuse.get("researched_candidate_set_id"),
+            criteria_snapshot_id=criteria_snapshot_id,
+            search_plan_id=search_plan_id,
+            raw_candidate_set_id=raw_candidate_set_id,
+            filtered_candidate_set_id=filtered_candidate_set_id,
+            researched_candidate_set_id=researched_candidate_set_id,
             verified_lead_set_id=state.get("verified_set_id") or reuse.get("verified_lead_set_id"),
             scoring_profile_id=state.get("scoring_profile_id") or reuse.get("scoring_profile_id"),
             lead_score_set_id=state.get("lead_set_id") or reuse.get("lead_score_set_id"),
         )
         promoted = deps.execution_snapshot_repository.promote(snapshot, current_task_version=task.version)
         event = "TASK_VERSION_ACTIVATED" if promoted else "ARTIFACT_PROMOTION_REJECTED"
-        plan_id = state.get("reexecution_plan_id")
         if plan_id:
             plan = deps.mutation_repository.get_plan(plan_id)
             if plan:
