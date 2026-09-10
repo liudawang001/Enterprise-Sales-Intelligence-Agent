@@ -58,6 +58,7 @@ class ScoreComponentResult(BaseModel):
 class LeadScore(BaseModel):
     lead_score_id: str = Field(default_factory=_id)
     task_id: str
+    task_version: int = 1
     enterprise_id: str
     criteria_snapshot_id: str
     scoring_profile_id: str
@@ -81,6 +82,7 @@ class RecommendationReason(BaseModel):
 class VerifiedLeadSet(BaseModel):
     lead_set_id: str = Field(default_factory=_id)
     task_id: str
+    task_version: int = 1
     criteria_snapshot_id: str
     scoring_profile_id: str
     lead_ids: list[str]

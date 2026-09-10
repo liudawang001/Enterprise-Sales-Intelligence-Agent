@@ -63,3 +63,11 @@ def test_soft_and_required_fields_use_verified_coverage():
 def test_region_and_business_changes_have_fixed_safe_bounds():
     assert _plan(TaskDiff(region_changed=True)).scope == MutationScope.DISCOVERY_REQUIRED
     assert _plan(TaskDiff(business_changed=True)).scope == MutationScope.FULL_REPLAN
+
+
+def test_runtime_can_record_safe_scope_escalation():
+    plan = _plan(TaskDiff(constraint_fields_changed=["employee_count"], hard_constraints_changed=True), CriteriaDiff(added_hard=[CompiledConstraint(field="employee_count", operator="GTE", value=100)]))
+    escalated = plan.model_copy(update={"final_scope": MutationScope.DISCOVERY_REQUIRED, "escalation_reason": "REUSABLE_RAW_POOL_MISSING"})
+    assert escalated.original_scope == MutationScope.FILTER_ONLY
+    assert escalated.final_scope == MutationScope.DISCOVERY_REQUIRED
+    assert escalated.escalation_reason == "REUSABLE_RAW_POOL_MISSING"

@@ -19,14 +19,15 @@ class InvalidTaskPatchError(ValueError):
 
 
 class MutationService:
-    def __init__(self, task_repository, mutation_repository, reuse_analyzer, *, planner: TaskMutationPlanner | None = None) -> None:
+    def __init__(self, task_repository, mutation_repository, reuse_analyzer, *, planner: TaskMutationPlanner | None = None, rule_service=None) -> None:
         self.task_repository = task_repository
         self.repository = mutation_repository
         self.reuse_analyzer = reuse_analyzer
         self.planner = planner or TaskMutationPlanner()
         self.registry = RuleFieldRegistry()
+        self.rule_service = rule_service
 
-    def validate_patch(self, patch: TaskPatch) -> TaskPatch:
+    def validate_patch(self, patch: TaskPatch, *, task_id: str | None = None) -> TaskPatch:
         if patch.target_count is not None and patch.target_count <= 0:
             raise InvalidTaskPatchError("INVALID_TASK_PATCH: target_count must be positive")
         if patch.business is not None and normalize_business_code(patch.business) not in BUSINESS_CATALOG:
@@ -48,6 +49,31 @@ class MutationService:
                     raise InvalidTaskPatchError("INVALID_TASK_PATCH: operator is not valid for field")
             elif item.operation in {"REMOVE", "CLEAR"} and (item.operator is not None or item.value is not None):
                 raise InvalidTaskPatchError("INVALID_TASK_PATCH: REMOVE/CLEAR must not include value")
+        if task_id and self.rule_service:
+            from app.rules.models import BusinessRule, ConstraintType, RuleSourceType
+
+            task = self.task_repository.get_task(task_id)
+            official = [
+                rule
+                for rule in self.rule_service.repository.rules.values()
+                if rule.business_code == normalize_business_code(task.business or "")
+                and rule.source_type == RuleSourceType.OFFICIAL_REQUIREMENT
+                and rule.constraint_type == ConstraintType.HARD
+            ]
+            for item in patch.constraints:
+                if item.operation not in {"ADD", "UPDATE"} or item.constraint_type != "HARD":
+                    continue
+                user = BusinessRule(
+                    business_code=normalize_business_code(task.business or ""),
+                    field=item.field,
+                    operator=item.operator,
+                    value=item.value,
+                    value_type="AUTO",
+                    source_type=RuleSourceType.USER_REQUIREMENT,
+                    constraint_type=ConstraintType.HARD,
+                )
+                if any(conflict.blocking for conflict in self.rule_service.conflicts.detect(official + [user])):
+                    raise InvalidTaskPatchError("RULE_CONFLICT")
         return patch
 
     def mutate(
@@ -63,7 +89,7 @@ class MutationService:
         if existing:
             task = self.task_repository.get_task(task_id)
             return existing, task
-        self.validate_patch(patch)
+        self.validate_patch(patch, task_id=task_id)
         task = self.task_repository.get_task(task_id)
         if not task:
             raise KeyError("TASK_NOT_FOUND")

@@ -124,6 +124,10 @@ def make_targeted_verification(deps: AgentDependencies):
         enriched = 0
         for enterprise_id in state.get("unresolved_enterprise_ids", [
         ])[: local_service.guard.budget.max_candidates]:
+            task = deps.task_repository.get_task(state.get("active_task_id"))
+            criteria = deps.rule_service.repository.criteria.get(state.get("criteria_snapshot_id", ""))
+            if not task or not criteria or task.version != criteria.task_version:
+                return {"verification_round": state.get("verification_round", 0) + 1, "unresolved_enterprise_ids": [], "warnings": ["STALE_EXECUTION"]}
             fields = {
                 name: value
                 for (stored_id, name), value in deps.evidence_repository.resolved_fields.items()

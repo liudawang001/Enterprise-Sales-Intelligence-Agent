@@ -81,7 +81,7 @@ class LeadScoreRepository:
 
     async def save_score(self, value: LeadScore) -> LeadScore:
         if not await self.session.get(LeadScoreRecord, UUID(value.lead_score_id)):
-            self.session.add(LeadScoreRecord(id=UUID(value.lead_score_id), task_id=value.task_id, enterprise_id=UUID(value.enterprise_id), criteria_snapshot_id=UUID(value.criteria_snapshot_id), scoring_profile_id=UUID(value.scoring_profile_id), scoring_profile_version=value.scoring_profile_version, total_score=value.total_score, rank_status=value.rank_status.value, verification_status=value.verification_status, evidence_coverage=value.evidence_coverage, component_scores=[item.model_dump(mode="json") for item in value.component_scores], created_at=value.created_at))
+            self.session.add(LeadScoreRecord(id=UUID(value.lead_score_id), task_id=value.task_id, task_version=value.task_version, enterprise_id=UUID(value.enterprise_id), criteria_snapshot_id=UUID(value.criteria_snapshot_id), scoring_profile_id=UUID(value.scoring_profile_id), scoring_profile_version=value.scoring_profile_version, total_score=value.total_score, rank_status=value.rank_status.value, verification_status=value.verification_status, evidence_coverage=value.evidence_coverage, component_scores=[item.model_dump(mode="json") for item in value.component_scores], created_at=value.created_at))
             await self.session.flush()
         return value
 
@@ -94,6 +94,6 @@ class LeadScoreRepository:
 
     async def save_lead_set(self, value: VerifiedLeadSet) -> VerifiedLeadSet:
         if not await self.session.get(VerifiedLeadSetRecord, UUID(value.lead_set_id)):
-            self.session.add(VerifiedLeadSetRecord(id=UUID(value.lead_set_id), task_id=value.task_id, criteria_snapshot_id=UUID(value.criteria_snapshot_id), scoring_profile_id=UUID(value.scoring_profile_id), lead_ids=value.lead_ids, lead_count=value.lead_count, created_at=value.created_at))
+            self.session.add(VerifiedLeadSetRecord(id=UUID(value.lead_set_id), task_id=value.task_id, task_version=value.task_version, criteria_snapshot_id=UUID(value.criteria_snapshot_id), scoring_profile_id=UUID(value.scoring_profile_id), lead_ids=value.lead_ids, lead_count=value.lead_count, created_at=value.created_at))
             await self.session.flush()
         return value

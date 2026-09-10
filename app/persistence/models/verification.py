@@ -166,6 +166,7 @@ class LeadScoreRecord(Base):
     __tablename__ = "lead_scores"
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
     task_id: Mapped[str] = mapped_column(String(80), index=True)
+    task_version: Mapped[int | None] = mapped_column(Integer)
     enterprise_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("canonical_enterprises.id"), index=True)
     criteria_snapshot_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("lead_criteria_snapshots.id"))
     scoring_profile_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("scoring_profiles.id"))
@@ -192,6 +193,7 @@ class VerifiedLeadSetRecord(Base):
     __tablename__ = "verified_lead_sets"
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
     task_id: Mapped[str] = mapped_column(String(80), index=True)
+    task_version: Mapped[int | None] = mapped_column(Integer)
     criteria_snapshot_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("lead_criteria_snapshots.id"))
     scoring_profile_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("scoring_profiles.id"))
     lead_ids: Mapped[list] = mapped_column(JSONB)

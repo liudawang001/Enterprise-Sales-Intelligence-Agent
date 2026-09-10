@@ -68,7 +68,7 @@ def classify_invalidation(
         if after_target_count <= reuse.verified_lead_count:
             return MutationScope.RANK_ONLY, ["TARGET_COUNT_WITHIN_VERIFIED_POOL"]
         if after_target_count <= max(reuse.researched_candidate_count, reuse.filtered_candidate_count, reuse.raw_candidate_count):
-            return MutationScope.FILTER_ONLY, ["TARGET_COUNT_EXCEEDS_REUSABLE_POOL", "HARD_FILTER_FIELD_AVAILABLE"]
+            return MutationScope.FILTER_ONLY, ["HARD_FILTER_FIELD_AVAILABLE"]
         return MutationScope.DISCOVERY_REQUIRED, ["TARGET_COUNT_EXCEEDS_REUSABLE_POOL", "DISCOVERY_UNIVERSE_CHANGED"]
 
     if task_diff.export_fields_changed:

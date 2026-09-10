@@ -8,6 +8,11 @@ def compose_lead_response(state: AgentState, deps: AgentDependencies) -> dict:
     leads = state.get("lead_results", [])
     if not task:
         return {"response_text": "当前没有可用的潜客任务。"}
+    if state.get("task_version") != task.version:
+        return {
+            "response_text": "该执行已被更新的任务版本取代，结果已保留但未设为当前结果。",
+            "warnings": ["STALE_EXECUTION"],
+        }
     top_name = leads[0].get("company_name") if leads else "暂无"
     deps.task_repository.set_status(task.task_id, stage=TaskStage.COMPLETED, status=TaskStatus.COMPLETED)
     return {

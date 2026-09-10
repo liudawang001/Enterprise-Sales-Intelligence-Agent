@@ -33,12 +33,13 @@ class TaskReferenceResolver:
             (value for value in ("刚才", "上一个", "最近", "第一个", "第二个") if value in text),
             None,
         )
-        vague = bool(re.search(r"(?:那个|这个|当前任务|现在这个)", text))
+        active_explicit = bool(re.search(r"(?:当前任务|现在这个)", text))
+        vague = bool(re.search(r"(?:那个|这个)", text)) and not active_explicit
         return TaskReference(
             explicit_task_id=explicit.group(1) if explicit else None,
             business_hint=business_hint,
             ordinal_hint=ordinal,
-            use_active_task=bool(active_task_id and (vague or not business_hint)),
+            use_active_task=bool(active_task_id and (active_explicit or (not vague and not business_hint))),
             confidence=1.0 if explicit or business_hint else 0.65 if active_task_id else 0.0,
         )
 

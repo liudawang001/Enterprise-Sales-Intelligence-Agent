@@ -1,6 +1,7 @@
 import pytest
 
 from app.domain.task import TaskPatch
+from app.mutation.preview import build_preview
 from app.repositories.mock_task_repository import (
     MockTaskRepository,
     TaskVersionConflictError,
@@ -40,3 +41,12 @@ def test_one_thread_can_own_multiple_tasks_and_switch_active_task():
     assert repository.get_active_task("thread-1").task_id == second.task_id
     repository.activate_task("thread-1", first.task_id)
     assert repository.get_active_task("thread-1").task_id == first.task_id
+
+
+def test_mutation_preview_is_pure():
+    repository = MockTaskRepository()
+    task = repository.create_task("thread")
+    preview = build_preview(task, TaskPatch(target_count=30))
+    assert preview.after["target_count"] == 30
+    assert repository.get_task(task.task_id).target_count is None
+    assert len(repository.list_versions(task.task_id)) == 1

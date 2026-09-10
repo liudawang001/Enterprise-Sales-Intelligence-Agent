@@ -13,6 +13,12 @@ class AgentState(TypedDict, total=False):
     messages: Annotated[list[BaseMessage], add_messages]
     session_id: str
     active_task_id: str | None
+    target_task_id: str | None
+    source_message_id: str | None
+    task_reference: dict | None
+    task_reference_status: str | None
+    task_candidates: list[dict]
+    current_task_snapshot: dict | None
     incoming_text: str | None
     intent: str | None
     intent_confidence: float
@@ -70,7 +76,18 @@ class AgentState(TypedDict, total=False):
     scoring_profile_id: str | None
     mutation_scope: str | None
     mutation_reason: str | None
+    mutation_id: str | None
+    mutation_preview: dict | None
+    task_diff: dict | None
+    artifact_reuse_context: dict | None
+    reexecution_plan_id: str | None
+    reexecution_plan: dict | None
+    reused_verified_profile_ids: list[str]
+    verification_needed: bool
+    execution_snapshot_id: str | None
     lead_results: list[dict]
+    export_spec: dict | None
+    export_path: str | None
     response_text: str | None
     citations: list[dict]
     rag_warnings: Annotated[list[str], operator.add]

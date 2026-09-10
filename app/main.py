@@ -10,9 +10,11 @@ from app.api.criteria import router as criteria_router
 from app.api.documents import router as documents_router
 from app.api.enterprises import router as enterprises_router
 from app.api.evidence import router as evidence_router
+from app.api.mutations import router as mutations_router
 from app.api.research import router as research_router
 from app.api.rules import router as rules_router
 from app.api.scores import router as scores_router
+from app.api.tasks import router as tasks_router
 from app.knowledge.ingestion.service import DocumentIngestionService
 from app.knowledge.repository import InMemoryKnowledgeRepository
 from app.knowledge.services.knowledge_service import KnowledgeService
@@ -20,7 +22,7 @@ from app.knowledge.services.knowledge_service import KnowledgeService
 
 def create_app() -> FastAPI:
     logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
-    application = FastAPI(title="Enterprise Sales Intelligence Agent", version="0.5.0")
+    application = FastAPI(title="Enterprise Sales Intelligence Agent", version="0.6.0")
     deps = build_dependencies()
     application.state.dependencies = deps
     knowledge_repository = InMemoryKnowledgeRepository()
@@ -37,6 +39,8 @@ def create_app() -> FastAPI:
     application.include_router(enterprises_router)
     application.include_router(evidence_router)
     application.include_router(scores_router)
+    application.include_router(tasks_router)
+    application.include_router(mutations_router)
 
     @application.get("/health")
     async def health() -> dict[str, str]:
