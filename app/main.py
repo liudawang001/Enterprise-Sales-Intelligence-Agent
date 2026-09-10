@@ -17,7 +17,6 @@ def create_app() -> FastAPI:
     application = FastAPI(title="Enterprise Sales Intelligence Agent", version="0.1.0")
     deps = build_dependencies()
     application.state.dependencies = deps
-    application.state.graph = build_main_graph(deps)
     knowledge_repository = InMemoryKnowledgeRepository()
     application.state.knowledge_repository = knowledge_repository
     application.state.ingestion_service = DocumentIngestionService(knowledge_repository)
