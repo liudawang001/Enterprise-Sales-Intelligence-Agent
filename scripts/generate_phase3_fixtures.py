@@ -29,7 +29,7 @@ def synthetic_customers() -> list[dict]:
     rows = []
     for index in range(60):
         region = regions[index % len(regions)]
-        office_count = index % 4 + 1
+        office_count = index % 3 + 1
         rows.append({"company_name": f"合成企业{index + 1:03d}", "industry": industries[index % len(industries)], "region": region, "employee_count": 30 + index * 5, "member_count": 5 + index * 3, "office_count": office_count, "branch_count": max(0, office_count - 1), "locations": [region], "company_scale": "LARGE" if index >= 40 else "MEDIUM" if index >= 15 else "SMALL", "company_status": "ACTIVE", "existing_products": [], "contact_availability": index % 3 != 0, "cross_region_presence": office_count >= 3})
     return rows
 
@@ -41,4 +41,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
