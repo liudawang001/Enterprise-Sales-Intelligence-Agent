@@ -1,9 +1,4 @@
-from pydantic import BaseModel, Field
+from app.criteria.models import CompiledConstraint, LeadCriteria, RankingPreference
+from app.rules.models import BusinessRule
 
-
-class LeadCriteria(BaseModel):
-    business: str
-    hard_constraints: list[dict] = Field(default_factory=list)
-    soft_constraints: list[dict] = Field(default_factory=list)
-    required_fields: list[str] = Field(default_factory=list)
-    ranking_preferences: list[dict] = Field(default_factory=list)
+__all__ = ["BusinessRule", "CompiledConstraint", "LeadCriteria", "RankingPreference"]
