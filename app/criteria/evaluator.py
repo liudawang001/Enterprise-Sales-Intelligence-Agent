@@ -4,6 +4,7 @@ from typing import Any, Protocol
 
 from app.criteria.models import LeadCriteria
 from app.rules.models import RuleOperator
+from app.research.models import FilterOutcome
 
 
 class CriteriaEvaluator(Protocol):
@@ -27,14 +28,22 @@ def _matches(value: Any, operator: RuleOperator, expected: Any) -> bool:
 
 
 class DefaultCriteriaEvaluator:
-    def matches_hard_constraints(self, enterprise: dict[str, Any], criteria: LeadCriteria) -> bool:
+    def evaluate_hard_constraints(self, enterprise: dict[str, Any], criteria: LeadCriteria) -> FilterOutcome:
+        unknown = False
         for constraint in criteria.hard_constraints:
             value = enterprise.get(constraint.field)
             if constraint.field == "has_office_in":
-                value = enterprise.get("locations", []) or ([enterprise.get("address")] if enterprise.get("address") else [])
+                locations = enterprise.get("locations")
+                value = locations if locations else ([enterprise.get("address")] if enterprise.get("address") else None)
+            if value is None:
+                unknown = True
+                continue
             if not _matches(value, constraint.operator, constraint.value):
-                return False
-        return True
+                return FilterOutcome.NO_MATCH
+        return FilterOutcome.UNKNOWN if unknown else FilterOutcome.MATCH
+
+    def matches_hard_constraints(self, enterprise: dict[str, Any], criteria: LeadCriteria) -> bool:
+        return self.evaluate_hard_constraints(enterprise, criteria) == FilterOutcome.MATCH
 
     def preference_score(self, enterprise: dict[str, Any], criteria: LeadCriteria) -> float:
         return sum(pref.normalized_weight for pref in criteria.ranking_preferences if _matches(enterprise.get(pref.field), pref.operator, pref.value))

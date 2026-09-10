@@ -14,9 +14,9 @@ def compose_lead_response(state: AgentState, deps: AgentDependencies) -> dict:
         "task_stage": TaskStage.COMPLETED.value,
         "task_status": TaskStatus.COMPLETED.value,
         "response_text": (
-            "已根据当前条件完成模拟潜客发现。\n\n"
+            "已根据当前条件完成企业潜客发现。\n\n"
             f"业务：{task.business}\n区域：{task.region}\n目标数量：{task.target_count}\n\n"
-            f"Phase 3 Criteria Mock Research 当前返回{len(leads)}条示例潜客，其中评分最高的是{top_name}。\n\n"
-            "当前结果来自Mock数据，尚未接入真实企业信息API。"
+            f"当前返回{len(leads)}条带来源的候选企业，其中研究优先级最高的是{top_name}。\n\n"
+            "候选信息仍为 Provisional；正式实体归一化、字段级证据核验和最终 Lead Score 将在 Phase 5 完成。"
         ),
     }
