@@ -90,12 +90,15 @@ async def research_events(research_run_id: str, request: Request):
         raise HTTPException(404, "Research run not found")
 
     async def stream():
-        payload = {
-            "event": "RESEARCH_COMPLETED" if run.finished_at else "RESEARCH_PROGRESS",
-            "stage": run.stage,
-            "status": run.status,
-            "used_budget": run.used_budget,
-        }
-        yield f"event: {payload['event']}\ndata: {json.dumps(payload, ensure_ascii=False, default=str)}\n\n"
+        events = _repository(request).events.get(research_run_id) or [
+            {
+                "event": "RESEARCH_PROGRESS",
+                "stage": run.stage,
+                "status": run.status,
+                "used_budget": run.used_budget,
+            }
+        ]
+        for payload in events:
+            yield f"event: {payload['event']}\ndata: {json.dumps(payload, ensure_ascii=False, default=str)}\n\n"
 
     return StreamingResponse(stream(), media_type="text/event-stream")

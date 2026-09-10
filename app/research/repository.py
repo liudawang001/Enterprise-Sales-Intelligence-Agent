@@ -24,6 +24,7 @@ class InMemoryResearchRepository:
         self.tool_runs: dict[str, ToolRun] = {}
         self.batch_results: dict[str, list[str]] = {}
         self.batches: dict[str, ResearchBatch] = {}
+        self.events: dict[str, list[dict]] = {}
 
     def save_run(self, value: ResearchRun) -> ResearchRun:
         self.runs[value.research_run_id] = deepcopy(value)
@@ -114,3 +115,6 @@ class InMemoryResearchRepository:
             query_ids=query_ids or [],
         )
         return batch_id
+
+    def record_event(self, research_run_id: str, event: str, **data: object) -> None:
+        self.events.setdefault(research_run_id, []).append({"event": event, **data})

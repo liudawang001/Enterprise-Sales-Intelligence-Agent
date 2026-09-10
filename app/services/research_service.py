@@ -30,6 +30,7 @@ from app.research.models import (
     ToolStatus,
     WebFetchRequest,
     WebSearchRequest,
+    WebsiteCandidate,
 )
 from app.research.planner import SearchPlanner, SearchPlanValidator
 from app.research.region import RegionResolver
@@ -55,19 +56,51 @@ def _rows(data: object) -> list[dict]:
 
 class WebsiteDiscoveryService:
     @staticmethod
-    def choose(company_name: str, rows: list[dict]) -> str | None:
+    def choose(company_name: str, rows: list[dict]) -> WebsiteCandidate | None:
         token = normalize_name(company_name).replace("有限公司", "")
         scored = []
         for index, row in enumerate(rows):
             if not row.get("url"):
                 continue
-            score = float(row.get("score", 0)) + (
-                0.5
-                if token and token in normalize_name(str(row.get("title", "")))
-                else 0
+            signals = []
+            if token and token in normalize_name(str(row.get("title", ""))):
+                signals.append("COMPANY_NAME_IN_TITLE")
+            confidence = min(1.0, float(row.get("score", 0)) + (0.3 if signals else 0))
+            candidate = WebsiteCandidate(
+                url=row["url"],
+                domain=urlparse(str(row["url"])).hostname or "",
+                title=row.get("title"),
+                source_provider=str(row.get("provider", "web_search")),
+                search_rank=index + 1,
+                matching_signals=signals,
+                provisional_confidence=confidence,
             )
-            scored.append((score, -index, str(row["url"])))
-        return max(scored)[2] if scored else None
+            scored.append((confidence, -index, candidate))
+        return max(scored, key=lambda item: (item[0], item[1]))[2] if scored else None
+
+
+def select_internal_links(home_url: str, content: str, max_pages: int) -> list[str]:
+    keywords = (
+        "contact",
+        "about",
+        "location",
+        "office",
+        "branch",
+        "联系我们",
+        "关于我们",
+        "分支机构",
+        "办公地点",
+        "公司简介",
+    )
+    home_domain = urlparse(home_url).hostname
+    links = re.findall(r"\[[^]]*\]\((https?://[^)\s]+)\)", content)
+    selected = [
+        url
+        for url in links
+        if urlparse(url).hostname == home_domain
+        and any(keyword in url.lower() for keyword in keywords)
+    ]
+    return list(dict.fromkeys(selected))[: max(0, max_pages - 1)]
 
 
 class WebFactExtractor:
@@ -131,6 +164,12 @@ class ResearchService:
         )
         self.repository.save_plan(plan)
         self.repository.save_run(run)
+        self.repository.record_event(
+            run.research_run_id,
+            "RESEARCH_PLAN_CREATED",
+            search_plan_id=plan.plan_id,
+            candidate_target=plan.candidate_target,
+        )
         limits = {
             "enterprise_search": self.settings.research_enterprise_concurrency,
             "enterprise_profile": self.settings.research_enterprise_concurrency,
@@ -335,6 +374,9 @@ class ResearchService:
                 "stage": "DISCOVERY_COMPLETED",
             }
         )
+        self.repository.record_event(
+            run_id, "DISCOVERY_COMPLETED", candidate_count=result.candidate_count
+        )
         return result
 
     async def enrich_batch(self, run_id: str, candidate_ids: list[str]) -> str:
@@ -449,6 +491,9 @@ class ResearchService:
                 "stage": "ENRICHMENT_COMPLETED",
             }
         )
+        self.repository.record_event(
+            run_id, "ENRICHMENT_COMPLETED", candidate_count=result.candidate_count
+        )
         return result
 
     def apply_hard_filters(
@@ -481,6 +526,9 @@ class ResearchService:
                 "stage": "FILTER_COMPLETED",
             }
         )
+        self.repository.record_event(
+            run_id, "FILTER_COMPLETED", candidate_count=result.candidate_count
+        )
         return result
 
     async def deep_research_batch(self, run_id: str, candidate_ids: list[str]) -> str:
@@ -502,7 +550,10 @@ class ResearchService:
                     call=lambda r=request: self.providers.web_search.search(r),
                 )
                 rows = _rows(result.data) if result.status == ToolStatus.SUCCESS else []
-                website = WebsiteDiscoveryService.choose(item.source_name, rows)
+                website_candidate = WebsiteDiscoveryService.choose(
+                    item.source_name, rows
+                )
+                website = str(website_candidate.url) if website_candidate else None
                 for row in rows:
                     self.repository.save_source(
                         SourceRecord(
@@ -541,7 +592,44 @@ class ResearchService:
             )
             if result.status == ToolStatus.SUCCESS:
                 text = str((result.data or {}).get("markdown", ""))[:30000]
-                facts = WebFactExtractor.extract(text, urlparse(website).hostname)
+                page_texts = [text]
+                for internal_url in select_internal_links(
+                    website, text, self.settings.research_max_pages_per_company
+                ):
+                    internal_request = WebFetchRequest(url=internal_url)
+                    internal_result = await self._runtimes[run_id].execute(
+                        research_run_id=run_id,
+                        task_id=run.task_id,
+                        query_id=None,
+                        provider=self.providers.web_fetch.name,
+                        operation="web_fetch",
+                        arguments=internal_request.model_dump(mode="json"),
+                        call=lambda r=internal_request: self.providers.web_fetch.fetch(
+                            r
+                        ),
+                    )
+                    if internal_result.status == ToolStatus.SUCCESS:
+                        internal_text = str(
+                            (internal_result.data or {}).get("markdown", "")
+                        )[:30000]
+                        page_texts.append(internal_text)
+                        self.repository.save_source(
+                            SourceRecord(
+                                research_run_id=run_id,
+                                candidate_id=cid,
+                                provider=self.providers.web_fetch.name,
+                                source_type=ResearchSourceType.PUBLIC_WEBPAGE,
+                                source_url=internal_url,
+                                content_text=internal_text,
+                                content_hash=hashlib.sha256(
+                                    internal_text.encode()
+                                ).hexdigest(),
+                                http_status=200,
+                            )
+                        )
+                facts = WebFactExtractor.extract(
+                    "\n".join(page_texts), urlparse(website).hostname
+                )
                 update = {
                     "website_candidate": website,
                     "status": CandidateStatus.RESEARCHED,
@@ -612,6 +700,13 @@ class ResearchService:
                 "error_code": error_code,
                 "finished_at": datetime.now(UTC),
             }
+        )
+        self.repository.record_event(
+            run_id,
+            "RESEARCH_COMPLETED",
+            status=status.value,
+            candidate_count=result.candidate_count,
+            error_code=error_code,
         )
         return result
 

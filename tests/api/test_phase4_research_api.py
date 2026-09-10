@@ -27,4 +27,6 @@ def test_research_candidate_source_plan_and_progress_apis():
         >= 1
     )
     assert "pushdown_explain" in plan.json()["plan"]
+    assert "RESEARCH_PLAN_CREATED" in events.text
+    assert "DISCOVERY_COMPLETED" in events.text
     assert "RESEARCH_COMPLETED" in events.text
