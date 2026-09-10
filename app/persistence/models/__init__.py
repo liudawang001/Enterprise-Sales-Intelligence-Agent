@@ -35,5 +35,12 @@ from app.persistence.models.verification import (
     VerifiedEnterpriseProfileRecord,
     VerifiedLeadSetRecord,
 )
+from app.persistence.models.task import (
+    LeadTaskRecord,
+    LeadTaskVersionRecord,
+    TaskExecutionSnapshotRecord,
+    TaskMutationRecord,
+    TaskReexecutionPlanRecord,
+)
 
-__all__ = ["BusinessCatalogRecord", "BusinessRuleEvidenceRecord", "BusinessRuleRecord", "CandidateSetMemberRecord", "CandidateSetRecord", "CanonicalEnterpriseRecord", "EnterpriseCandidateLinkRecord", "EnterpriseCandidateRecord", "EnterpriseEvidenceRecord", "EnterpriseLocationRecord", "EnterpriseRelationRecord", "EntityResolutionDecisionRecord", "EntityResolutionRunRecord", "KnowledgeChunkRecord", "KnowledgeDocumentRecord", "LeadCriteriaSnapshotRecord", "LeadScoreRecord", "MarketingRuleRecord", "RecommendationReasonRecord", "ResearchBatchRecord", "ResearchRunRecord", "ResearchSearchPlanRecord", "ResearchSourceRecordModel", "ResolvedFieldRecord", "ScoringProfileRecord", "ToolRunRecord", "VerificationRunRecord", "VerifiedEnterpriseProfileRecord", "VerifiedLeadSetRecord"]
+__all__ = ["BusinessCatalogRecord", "BusinessRuleEvidenceRecord", "BusinessRuleRecord", "CandidateSetMemberRecord", "CandidateSetRecord", "CanonicalEnterpriseRecord", "EnterpriseCandidateLinkRecord", "EnterpriseCandidateRecord", "EnterpriseEvidenceRecord", "EnterpriseLocationRecord", "EnterpriseRelationRecord", "EntityResolutionDecisionRecord", "EntityResolutionRunRecord", "KnowledgeChunkRecord", "KnowledgeDocumentRecord", "LeadCriteriaSnapshotRecord", "LeadScoreRecord", "LeadTaskRecord", "LeadTaskVersionRecord", "MarketingRuleRecord", "RecommendationReasonRecord", "ResearchBatchRecord", "ResearchRunRecord", "ResearchSearchPlanRecord", "ResearchSourceRecordModel", "ResolvedFieldRecord", "ScoringProfileRecord", "TaskExecutionSnapshotRecord", "TaskMutationRecord", "TaskReexecutionPlanRecord", "ToolRunRecord", "VerificationRunRecord", "VerifiedEnterpriseProfileRecord", "VerifiedLeadSetRecord"]

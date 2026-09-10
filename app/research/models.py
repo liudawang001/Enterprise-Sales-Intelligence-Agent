@@ -120,6 +120,7 @@ class SearchPlan(BaseModel):
     deep_research_fields: list[str] = Field(default_factory=list)
     post_filter_fields: list[str] = Field(default_factory=list)
     pushdown_explain: dict[str, Any] = Field(default_factory=dict)
+    field_dependencies: dict[str, list[str]] = Field(default_factory=dict)
     budget: ResearchBudget
     batch_size: int = Field(default=10, ge=1, le=20)
     max_expansion_rounds: int = Field(default=2, ge=0, le=5)
