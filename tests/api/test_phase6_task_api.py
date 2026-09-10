@@ -23,6 +23,7 @@ def test_task_version_mutation_and_explain_apis():
     assert mutation["scope"] == "DISPLAY_ONLY"
     assert detail.json()["reason_codes"] == ["TARGET_COUNT_DECREASE"]
     assert plan.json()["reused_artifact_ids"]
+    assert plan.json()["target_version"] == 3
     assert len(versions.json()) == 3
 
 

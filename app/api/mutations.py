@@ -55,4 +55,6 @@ async def get_reexecution(plan_id: str, request: Request) -> dict:
     value = request.app.state.dependencies.mutation_repository.get_plan(plan_id)
     if not value:
         raise HTTPException(404, "REEXECUTION_PLAN_NOT_FOUND")
-    return value.model_dump(mode="json")
+    result = value.model_dump(mode="json")
+    result["target_version"] = value.next_version
+    return result
