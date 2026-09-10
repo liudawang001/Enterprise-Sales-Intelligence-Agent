@@ -11,7 +11,8 @@ def build_mock_search_plan(state: AgentState) -> dict:
 def mock_discovery(state: AgentState) -> dict:
     deps: AgentDependencies = state["_deps"]  # type: ignore[typeddict-item]
     task = deps.task_repository.get_task(state.get("active_task_id"))
-    candidate_set_id, leads = deps.research_service.discover(region=task.region if task and task.region else "上海松江")
+    criteria = deps.rule_service.repository.criteria.get(state.get("criteria_snapshot_id")) if state.get("criteria_snapshot_id") else None
+    candidate_set_id, leads = deps.research_service.discover(region=task.region if task and task.region else "上海松江", criteria=criteria)
     return {"candidate_set_id": candidate_set_id, "candidate_count": len(leads)}
 
 

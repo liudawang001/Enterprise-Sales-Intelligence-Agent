@@ -9,11 +9,11 @@ def classify_intent(state: AgentState) -> dict:
     active_task = state.get("active_task_id")
     if re.search(r"导出.*Excel|Excel.*导出|导出", text, re.IGNORECASE):
         intent = IntentType.EXPORT_REQUEST
-    elif active_task and re.search(r"数量|改成|改为|企业专线|不限制|排序|权重", text):
+    elif active_task and re.search(r"数量|改成|改为|企业专线|不限制|不要限制|排序|权重|优先|最好|必须|排除|成员数|员工数|办公点", text):
         intent = IntentType.TASK_MODIFICATION
-    elif re.search(r"为什么.*评分|评分.*最高|第\d+家", text):
+    elif re.search(r"为什么.*(?:评分|条件|要求)|评分.*最高|第\d+家|Criteria|条件.*版本", text, re.IGNORECASE):
         intent = IntentType.LEAD_QUERY
-    elif re.search(r"是什么|怎么|含义|介绍", text) and "集团V网" in text:
+    elif re.search(r"是什么|怎么|含义|介绍|什么客户|哪些企业|适合什么", text) and ("集团V网" in text or "企业专线" in text):
         intent = IntentType.BUSINESS_QA
     elif re.search(r"找|筛选|潜客|客户|企业", text) and ("集团V网" in text or "企业专线" in text):
         intent = IntentType.LEAD_DISCOVERY

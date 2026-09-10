@@ -27,4 +27,4 @@ def test_chat_api_complete_request_and_business_qa() -> None:
     assert complete.json()["status"] == "COMPLETED"
     assert complete.json()["task_id"] != "api-complete"
     assert qa.json()["task_id"] is None
-    assert "Mock Answer" in qa.json()["message"]
+    assert "没有找到足够证据" in qa.json()["message"]
