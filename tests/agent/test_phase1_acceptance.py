@@ -43,5 +43,5 @@ def test_business_qa_stays_outside_lead_task_flow() -> None:
     )
 
     assert result["intent"] == "BUSINESS_QA"
-    assert "Mock Answer" in result["response_text"]
+    assert "没有找到足够证据" in result["response_text"]
     assert deps.task_repository.get_active_task(session_id) is None

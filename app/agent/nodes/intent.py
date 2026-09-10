@@ -13,7 +13,7 @@ def classify_intent(state: AgentState) -> dict:
         intent = IntentType.TASK_MODIFICATION
     elif re.search(r"为什么.*评分|评分.*最高|第\d+家", text):
         intent = IntentType.LEAD_QUERY
-    elif re.search(r"是什么|怎么|含义|介绍", text) and "集团V网" in text:
+    elif re.search(r"是什么|怎么|含义|介绍|什么客户|哪些企业|适合什么", text) and ("集团V网" in text or "企业专线" in text):
         intent = IntentType.BUSINESS_QA
     elif re.search(r"找|筛选|潜客|客户|企业", text) and ("集团V网" in text or "企业专线" in text):
         intent = IntentType.LEAD_DISCOVERY

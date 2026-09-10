@@ -21,7 +21,7 @@ def test_business_qa_and_planning_subgraphs() -> None:
     qa = build_business_qa_graph().invoke({"incoming_text": "集团V网是什么？"})
     planning = build_business_planning_graph(deps).invoke({"active_task_id": task.task_id})
 
-    assert "Mock Answer" in qa["response_text"]
+    assert "没有找到足够证据" in qa["response_text"]
     assert planning["criteria_snapshot_id"]
 
 
