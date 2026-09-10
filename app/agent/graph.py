@@ -17,8 +17,9 @@ from app.agent.state import AgentState
 from app.agent.subgraphs.business_planning.graph import build_business_planning_graph
 from app.agent.subgraphs.business_qa.graph import build_business_qa_graph
 from app.agent.subgraphs.mutation.graph import build_mutation_graph
-from app.agent.subgraphs.research.graph import build_research_graph
 from app.agent.subgraphs.requirement.graph import build_requirement_graph
+from app.agent.subgraphs.research.graph import build_research_graph
+from app.agent.subgraphs.verification.graph import build_verification_graph
 from app.knowledge.services.knowledge_service import KnowledgeService
 
 logger = logging.getLogger(__name__)
@@ -54,7 +55,21 @@ def _lead_query_node(state: AgentState, deps: AgentDependencies) -> dict:
     if not leads:
         return {"response_text": "当前还没有可解释的潜客评分结果。"}
     lead = leads[0]
-    return {"response_text": f"{lead['company_name']}评分最高，原因是联系方式完整且符合当前区域与行业模拟规则。"}
+    enterprise_id = lead.get("enterprise_id")
+    score = deps.lead_score_repository.get_for_enterprise(enterprise_id)
+    reason = deps.lead_score_repository.reasons.get(enterprise_id)
+    if not score or not reason:
+        return {"response_text": "当前评分缺少可追溯的解释记录。"}
+    components = "、".join(
+        f"{item.component}={item.weighted_score}" for item in score.component_scores
+    )
+    return {
+        "response_text": (
+            f"{lead['company_name']} 的确定性评分为 {score.total_score}，"
+            f"状态为 {score.rank_status.value}。{reason.summary}\n"
+            f"组件：{components}\nEvidence IDs：{', '.join(reason.evidence_ids)}"
+        )
+    }
 
 
 def build_main_graph(deps: AgentDependencies, *, checkpointer=None, knowledge_service: KnowledgeService | None = None):
@@ -69,6 +84,7 @@ def build_main_graph(deps: AgentDependencies, *, checkpointer=None, knowledge_se
     builder.add_node("requirement", build_requirement_graph(deps))
     builder.add_node("business_planning", build_business_planning_graph(deps))
     builder.add_node("research", build_research_graph(deps))
+    builder.add_node("verification", build_verification_graph(deps))
     builder.add_node("score_leads", lambda state: score_leads({**state, "_deps": deps}, deps))
     builder.add_node("mutation", build_mutation_graph(deps))
     builder.add_node("compose_lead_response", lambda state: compose_lead_response(state, deps))
@@ -91,7 +107,8 @@ def build_main_graph(deps: AgentDependencies, *, checkpointer=None, knowledge_se
     builder.add_edge("create_lead_task", "requirement")
     builder.add_edge("requirement", "business_planning")
     builder.add_conditional_edges("business_planning", lambda state: "FAILED" if state.get("planning_status") == "FAILED" else "READY", {"FAILED": "planning_error", "READY": "research"})
-    builder.add_edge("research", "score_leads")
+    builder.add_edge("research", "verification")
+    builder.add_edge("verification", "score_leads")
     builder.add_edge("score_leads", "compose_lead_response")
     builder.add_edge("compose_lead_response", END)
     builder.add_conditional_edges("mutation", route_mutation, {

@@ -1,0 +1,26 @@
+from enum import StrEnum
+
+
+class EntityType(StrEnum):
+    LEGAL_ENTITY = "LEGAL_ENTITY"
+    BRANCH = "BRANCH"
+    SUBSIDIARY = "SUBSIDIARY"
+    OFFICE = "OFFICE"
+    STORE = "STORE"
+    UNKNOWN = "UNKNOWN"
+
+
+class EntityRelationType(StrEnum):
+    SAME_ENTITY = "SAME_ENTITY"
+    BRANCH_OF = "BRANCH_OF"
+    SUBSIDIARY_OF = "SUBSIDIARY_OF"
+    OFFICE_OF = "OFFICE_OF"
+    STORE_OF = "STORE_OF"
+    POSSIBLY_RELATED = "POSSIBLY_RELATED"
+    DIFFERENT = "DIFFERENT"
+
+
+class ResolutionStatus(StrEnum):
+    RESOLVED = "RESOLVED"
+    AMBIGUOUS = "AMBIGUOUS"
+    UNRESOLVED = "UNRESOLVED"

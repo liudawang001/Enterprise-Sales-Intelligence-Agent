@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "enterprise-sales-intelligence-agent"
-version = "0.3.0"
-description = "Enterprise Sales Intelligence Agent with grounded RAG and versioned lead criteria"
+version = "0.5.0"
+description = "Enterprise Sales Intelligence Agent with evidence-grounded enterprise verification and scoring"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115",
@@ -26,15 +26,17 @@ dependencies = [
     "jieba>=0.42",
     "sentence-transformers>=3.3",
     "python-multipart>=0.0.18",
+    "httpx>=0.27",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "pytest-asyncio>=0.23", "httpx>=0.27"]
+dev = ["pytest>=8", "pytest-asyncio>=0.23"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-markers = ["integration: requires PostgreSQL with pgvector"]
+addopts = "-m 'not external'"
+markers = ["integration: requires PostgreSQL with pgvector", "external: consumes configured provider credentials"]
 
 [tool.setuptools.packages.find]
 include = ["app*"]

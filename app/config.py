@@ -28,6 +28,31 @@ class Settings(BaseSettings):
     rule_debug: bool = False
     model_suggestions_enabled: bool = False
     upload_dir: str = "data/uploads"
+    enterprise_provider: str = "fake"
+    enterprise_api_base_url: str = ""
+    enterprise_api_key: str = ""
+    map_provider: str = "fake"
+    amap_api_key: str = ""
+    web_search_provider: str = "fake"
+    tavily_api_key: str = ""
+    web_fetch_provider: str = "fake"
+    firecrawl_api_key: str = ""
+    research_max_tool_calls: int = 300
+    research_max_web_searches: int = 80
+    research_max_web_pages: int = 120
+    research_max_candidates: int = 300
+    research_max_retries: int = 3
+    research_max_expansion_rounds: int = 2
+    research_max_pages_per_company: int = 4
+    research_discovery_multiplier: int = 4
+    research_batch_size: int = 10
+    research_enterprise_concurrency: int = 5
+    research_map_concurrency: int = 5
+    research_web_search_concurrency: int = 8
+    research_web_fetch_concurrency: int = 4
+    verification_max_extra_calls: int = 100
+    verification_max_calls_per_entity: int = 3
+    verification_max_rounds: int = 1
 
 
 @lru_cache
