@@ -61,7 +61,7 @@ async def chat(payload: ChatRequest, request: Request) -> dict[str, Any]:
     task = deps.task_repository.get_active_task(payload.session_id)
     if interrupt:
         return {"status": "WAITING_USER", "task_id": task.task_id if task else None, "interrupt": interrupt}
-    data = {"lead_results": result.get("lead_results", []), "citations": result.get("citations", []), "warnings": result.get("rag_warnings", []), "criteria_snapshot_id": result.get("criteria_snapshot_id")}
+    data = {"lead_results": result.get("lead_results", []), "citations": result.get("citations", []), "warnings": result.get("rag_warnings", []) + result.get("warnings", []), "criteria_snapshot_id": result.get("criteria_snapshot_id"), "research_run_id": result.get("research_run_id"), "search_plan_id": result.get("search_plan_id"), "candidate_set_id": result.get("candidate_set_id")}
     if os.getenv("RULE_DEBUG", "false").lower() in {"1", "true", "yes"}:
         data["rule_debug"] = {key: result.get(key, []) for key in ("official_rule_ids", "marketing_rule_ids", "user_rule_ids", "model_suggestion_ids", "normalized_rule_ids", "conflict_ids", "included_rule_ids", "suppressed_rule_ids")}
     return {

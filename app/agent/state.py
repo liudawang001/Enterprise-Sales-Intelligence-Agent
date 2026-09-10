@@ -39,6 +39,21 @@ class AgentState(TypedDict, total=False):
     planning_status: str | None
     criteria_explain: dict | None
     search_plan_id: str | None
+    research_run_id: str | None
+    raw_candidate_set_id: str | None
+    cheap_enriched_set_id: str | None
+    filtered_candidate_set_id: str | None
+    researched_candidate_set_id: str | None
+    discovery_batches: list[list[dict]]
+    discovery_batch: list[dict]
+    enrichment_batches: list[list[str]]
+    enrichment_batch: list[str]
+    deep_research_batches: list[list[str]]
+    deep_research_batch: list[str]
+    expansion_round: int
+    discovery_result_refs: Annotated[list[str], operator.add]
+    enrichment_result_refs: Annotated[list[str], operator.add]
+    deep_research_result_refs: Annotated[list[str], operator.add]
     candidate_set_id: str | None
     candidate_count: int
     verified_set_id: str | None

@@ -9,6 +9,7 @@ from app.api.chat import router as chat_router
 from app.api.documents import router as documents_router
 from app.api.rules import router as rules_router
 from app.api.criteria import router as criteria_router
+from app.api.research import router as research_router
 from app.knowledge.ingestion.service import DocumentIngestionService
 from app.knowledge.repository import InMemoryKnowledgeRepository
 from app.knowledge.services.knowledge_service import KnowledgeService
@@ -16,7 +17,7 @@ from app.knowledge.services.knowledge_service import KnowledgeService
 
 def create_app() -> FastAPI:
     logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
-    application = FastAPI(title="Enterprise Sales Intelligence Agent", version="0.3.0")
+    application = FastAPI(title="Enterprise Sales Intelligence Agent", version="0.4.0")
     deps = build_dependencies()
     application.state.dependencies = deps
     knowledge_repository = InMemoryKnowledgeRepository()
@@ -29,6 +30,7 @@ def create_app() -> FastAPI:
     application.include_router(documents_router)
     application.include_router(rules_router)
     application.include_router(criteria_router)
+    application.include_router(research_router)
 
     @application.get("/health")
     async def health() -> dict[str, str]:
