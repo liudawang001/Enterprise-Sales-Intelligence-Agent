@@ -16,7 +16,7 @@ def compose_lead_response(state: AgentState, deps: AgentDependencies) -> dict:
         "response_text": (
             "已根据当前条件完成模拟潜客发现。\n\n"
             f"业务：{task.business}\n区域：{task.region}\n目标数量：{task.target_count}\n\n"
-            f"Phase 1 Mock Research 当前返回{len(leads)}条示例潜客，其中评分最高的是{top_name}。\n\n"
+            f"Phase 3 Criteria Mock Research 当前返回{len(leads)}条示例潜客，其中评分最高的是{top_name}。\n\n"
             "当前结果来自Mock数据，尚未接入真实企业信息API。"
         ),
     }

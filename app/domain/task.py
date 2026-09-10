@@ -43,3 +43,11 @@ class Lead(BaseModel):
     score: float | None = None
     recommendation_reason: str | None = None
     office_count: int | None = None
+    employee_count: int | None = None
+    member_count: int | None = None
+    branch_count: int | None = None
+    locations: list[str] = Field(default_factory=list)
+    company_scale: str | None = None
+    company_status: str | None = None
+    existing_products: list[str] = Field(default_factory=list)
+    cross_region_presence: bool = False

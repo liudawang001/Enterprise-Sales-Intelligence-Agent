@@ -6,6 +6,10 @@ from langgraph.graph.message import add_messages
 
 
 class AgentState(TypedDict, total=False):
+    _deps: object
+    requirement_snapshot: dict
+    evidence_chunk_ids: list[str]
+    conflict_resolution_text: str | None
     messages: Annotated[list[BaseMessage], add_messages]
     session_id: str
     active_task_id: str | None
@@ -21,6 +25,19 @@ class AgentState(TypedDict, total=False):
     clarification_text: str | None
     business_context_refs: list[str]
     criteria_snapshot_id: str | None
+    previous_criteria_snapshot_id: str | None
+    criteria_diff: dict | None
+    official_rule_ids: list[str]
+    marketing_rule_ids: list[str]
+    user_rule_ids: list[str]
+    model_suggestion_ids: list[str]
+    normalized_rule_ids: list[str]
+    valid_rule_ids: list[str]
+    included_rule_ids: list[str]
+    suppressed_rule_ids: list[str]
+    conflict_ids: list[str]
+    planning_status: str | None
+    criteria_explain: dict | None
     search_plan_id: str | None
     candidate_set_id: str | None
     candidate_count: int
