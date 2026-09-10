@@ -63,5 +63,5 @@ async def chat(payload: ChatRequest, request: Request) -> dict[str, Any]:
         "status": "COMPLETED",
         "task_id": task.task_id if task else None,
         "message": result.get("response_text", ""),
-        "data": {"lead_results": result.get("lead_results", [])},
+        "data": {"lead_results": result.get("lead_results", []), "citations": result.get("citations", []), "warnings": result.get("rag_warnings", [])},
     }

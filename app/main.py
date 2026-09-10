@@ -9,6 +9,7 @@ from app.api.chat import router as chat_router
 from app.api.documents import router as documents_router
 from app.knowledge.ingestion.service import DocumentIngestionService
 from app.knowledge.repository import InMemoryKnowledgeRepository
+from app.knowledge.services.knowledge_service import KnowledgeService
 
 
 def create_app() -> FastAPI:
@@ -20,6 +21,8 @@ def create_app() -> FastAPI:
     knowledge_repository = InMemoryKnowledgeRepository()
     application.state.knowledge_repository = knowledge_repository
     application.state.ingestion_service = DocumentIngestionService(knowledge_repository)
+    application.state.knowledge_service = KnowledgeService(knowledge_repository)
+    application.state.graph = build_main_graph(deps, knowledge_service=application.state.knowledge_service)
     application.include_router(chat_router)
     application.include_router(documents_router)
 

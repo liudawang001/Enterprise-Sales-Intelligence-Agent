@@ -18,6 +18,7 @@ from app.agent.subgraphs.business_qa.graph import build_business_qa_graph
 from app.agent.subgraphs.mutation.graph import build_mutation_graph
 from app.agent.subgraphs.research.graph import build_research_graph
 from app.agent.subgraphs.requirement.graph import build_requirement_graph
+from app.knowledge.services.knowledge_service import KnowledgeService
 
 logger = logging.getLogger(__name__)
 
@@ -36,13 +37,13 @@ def _lead_query_node(state: AgentState) -> dict:
     return {"response_text": f"{lead['company_name']}评分最高，原因是联系方式完整且符合当前区域与行业模拟规则。"}
 
 
-def build_main_graph(deps: AgentDependencies, *, checkpointer=None):
+def build_main_graph(deps: AgentDependencies, *, checkpointer=None, knowledge_service: KnowledgeService | None = None):
     builder = StateGraph(AgentState)
 
     builder.add_node("load_context", lambda state: load_context(state, deps))
     builder.add_node("classify_intent", classify_intent)
     builder.add_node("create_lead_task", lambda state: create_lead_task(state, deps))
-    builder.add_node("business_qa", build_business_qa_graph())
+    builder.add_node("business_qa", build_business_qa_graph(knowledge_service))
     builder.add_node("requirement", build_requirement_graph(deps))
     builder.add_node("business_planning", build_business_planning_graph(deps))
     builder.add_node("research", build_research_graph(deps))

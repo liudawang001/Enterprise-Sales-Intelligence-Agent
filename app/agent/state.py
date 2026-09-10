@@ -30,6 +30,12 @@ class AgentState(TypedDict, total=False):
     mutation_reason: str | None
     lead_results: list[dict]
     response_text: str | None
+    citations: list[dict]
+    rag_warnings: Annotated[list[str], operator.add]
+    knowledge_query: dict
+    retrieval_hit_summaries: list[dict]
+    evidence_count: int
+    evidence_status: str
     progress: dict
     warnings: Annotated[list[str], operator.add]
     errors: Annotated[list[dict], operator.add]

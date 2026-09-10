@@ -28,3 +28,4 @@ def test_business_qa_does_not_create_task():
     assert result["intent"] == "BUSINESS_QA"
     assert result["active_task_id"] is None
     assert deps.task_repository.get_active_task("qa-1") is None
+    assert "没有找到足够证据" in result["response_text"]
