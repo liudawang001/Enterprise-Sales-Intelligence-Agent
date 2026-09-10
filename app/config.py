@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     rag_chunk_size: int = 900
     rag_chunk_overlap: int = 120
     rag_debug: bool = False
+    rule_debug: bool = False
+    model_suggestions_enabled: bool = False
     upload_dir: str = "data/uploads"
 
 

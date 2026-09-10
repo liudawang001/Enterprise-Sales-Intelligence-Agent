@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "enterprise-sales-intelligence-agent"
-version = "0.1.0"
-description = "Enterprise Sales Intelligence Agent Phase 1 LangGraph runtime"
+version = "0.3.0"
+description = "Enterprise Sales Intelligence Agent with grounded RAG and versioned lead criteria"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115",

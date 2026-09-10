@@ -1,1 +1,1 @@
-"""Phase 1 subgraphs."""
+"""LangGraph business subgraphs."""
