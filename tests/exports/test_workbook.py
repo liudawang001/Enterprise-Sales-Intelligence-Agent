@@ -5,7 +5,6 @@ from openpyxl import load_workbook
 from app.agent.dependencies import build_dependencies
 from app.agent.graph import build_main_graph
 from app.delivery.models import DeliveryBundle
-from app.domain.task import TaskPatch
 from app.exports.models import CreateExportRequest
 from app.exports.registry import ExportFieldRegistry
 from app.exports.workbook import build_workbook
@@ -91,7 +90,17 @@ def test_workbook_structure_types_and_ui_projection_are_identical():
 
 def test_export_is_idempotent_and_bound_to_frozen_historical_snapshot():
     deps = _completed_dependencies("export-idempotent")
+    graph = build_main_graph(deps)
+    for target_count in (2, 3, 2):
+        graph.invoke(
+            {
+                "session_id": "export-idempotent",
+                "incoming_text": f"改成{target_count}家",
+            },
+            config={"configurable": {"thread_id": "export-idempotent"}},
+        )
     task = deps.task_repository.get_active_task("export-idempotent")
+    assert task.version == 5
     bundle = deps.delivery_query_service.freeze(task.task_id, task.version)
     request = CreateExportRequest(
         task_id=task.task_id,
@@ -100,13 +109,17 @@ def test_export_is_idempotent_and_bound_to_frozen_historical_snapshot():
         fields=["rank", "enterprise_name", "lead_score", "verification_status"],
     )
     first = deps.export_service.create_export(request)
-    deps.task_service.apply_patch(task.task_id, TaskPatch(target_count=2))
+    graph.invoke(
+        {"session_id": "export-idempotent", "incoming_text": "改成3家"},
+        config={"configurable": {"thread_id": "export-idempotent"}},
+    )
+    assert deps.task_repository.get_task(task.task_id).version == 6
     second = deps.export_service.create_export(request)
 
     assert first.export_id == second.export_id
     workbook = load_workbook(first.artifact_path)
     metadata = {workbook["任务信息"].cell(row, 1).value: workbook["任务信息"].cell(row, 2).value for row in range(2, workbook["任务信息"].max_row + 1)}
-    assert metadata["task_version"] == bundle.snapshot.task_version
+    assert metadata["task_version"] == bundle.snapshot.task_version == 5
     assert workbook["潜客清单"].max_row == len(bundle.leads) + 1
 
 
