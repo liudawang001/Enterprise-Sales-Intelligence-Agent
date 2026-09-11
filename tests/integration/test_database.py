@@ -86,6 +86,25 @@ async def test_postgres_has_phase6_task_control_tables() -> None:
 
 @pytest.mark.integration
 @pytest.mark.asyncio
+async def test_postgres_has_phase7_delivery_tables() -> None:
+    url = os.getenv("TEST_DATABASE_URL")
+    if not url:
+        pytest.skip("TEST_DATABASE_URL is not configured")
+    engine = create_database_engine(url)
+    try:
+        async with engine.connect() as connection:
+            tables = set(
+                await connection.run_sync(
+                    lambda sync_connection: inspect(sync_connection).get_table_names()
+                )
+            )
+        assert {"delivery_snapshots", "exports"} <= tables
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
 async def test_postgres_task_versions_are_append_only() -> None:
     url = os.getenv("TEST_DATABASE_URL")
     if not url:
