@@ -47,7 +47,9 @@ class LeadScoringService:
             if not profile:
                 continue
             score = self.repository.save_score(self.engine.score(task_id=task_id, profile=profile, criteria=criteria, scoring_profile=scoring_profile).model_copy(update={"task_version": task_version}))
-            reason = self.repository.save_reason(self.explainer.explain(score))
+            reason = self.repository.save_reason(
+                self.explainer.explain(score), lead_score_id=score.lead_score_id
+            )
             enterprise = self.enterprise_repository.get_enterprise(profile.enterprise_id)
             scores.append(score)
             rows.append({

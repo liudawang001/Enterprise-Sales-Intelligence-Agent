@@ -7,9 +7,12 @@ from app.agent.dependencies import build_dependencies
 from app.agent.graph import build_main_graph
 from app.api.chat import router as chat_router
 from app.api.criteria import router as criteria_router
+from app.api.delivery import router as delivery_router
 from app.api.documents import router as documents_router
 from app.api.enterprises import router as enterprises_router
 from app.api.evidence import router as evidence_router
+from app.api.exports import router as exports_router
+from app.api.exports import task_exports_router
 from app.api.mutations import router as mutations_router
 from app.api.research import router as research_router
 from app.api.rules import router as rules_router
@@ -22,7 +25,7 @@ from app.knowledge.services.knowledge_service import KnowledgeService
 
 def create_app() -> FastAPI:
     logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
-    application = FastAPI(title="Enterprise Sales Intelligence Agent", version="0.6.0")
+    application = FastAPI(title="Enterprise Sales Intelligence Agent", version="0.7.0")
     deps = build_dependencies()
     application.state.dependencies = deps
     knowledge_repository = InMemoryKnowledgeRepository()
@@ -33,11 +36,14 @@ def create_app() -> FastAPI:
     application.state.graph = build_main_graph(deps, knowledge_service=application.state.knowledge_service)
     application.include_router(chat_router)
     application.include_router(documents_router)
+    application.include_router(delivery_router)
     application.include_router(rules_router)
     application.include_router(criteria_router)
     application.include_router(research_router)
     application.include_router(enterprises_router)
     application.include_router(evidence_router)
+    application.include_router(exports_router)
+    application.include_router(task_exports_router)
     application.include_router(scores_router)
     application.include_router(tasks_router)
     application.include_router(mutations_router)

@@ -9,8 +9,12 @@ from app.execution.repository import InMemoryExecutionSnapshotRepository
 from app.mutation.repository import InMemoryMutationRepository
 from app.mutation.reuse import ArtifactReuseAnalyzer
 from app.mutation.service import MutationService
+from app.repositories.delivery_snapshot_repository import (
+    InMemoryDeliverySnapshotRepository,
+)
 from app.repositories.enterprise_repository import InMemoryEnterpriseRepository
 from app.repositories.evidence_repository import InMemoryEvidenceRepository
+from app.repositories.export_repository import InMemoryExportRepository
 from app.repositories.lead_score_repository import InMemoryLeadScoreRepository
 from app.repositories.mock_task_repository import MockTaskRepository
 from app.rules.service import BusinessRuleService
@@ -42,6 +46,11 @@ class AgentDependencies:
     execution_snapshot_repository: InMemoryExecutionSnapshotRepository | None = None
     task_reference_resolver: TaskReferenceResolver | None = None
     mutation_service: MutationService | None = None
+    delivery_snapshot_repository: InMemoryDeliverySnapshotRepository | None = None
+    delivery_query_service: object | None = None
+    export_repository: object | None = None
+    export_service: object | None = None
+    event_repository: object | None = None
 
 
 def build_dependencies() -> AgentDependencies:
@@ -113,6 +122,7 @@ def build_dependencies() -> AgentDependencies:
         ),
         mutation_repository=mutation_repository,
         execution_snapshot_repository=execution_snapshot_repository,
+        delivery_snapshot_repository=InMemoryDeliverySnapshotRepository(),
         task_reference_resolver=TaskReferenceResolver(repository),
     )
     deps.mutation_service = MutationService(
@@ -120,5 +130,19 @@ def build_dependencies() -> AgentDependencies:
         mutation_repository,
         ArtifactReuseAnalyzer(deps),
         rule_service=rule_service,
+    )
+    from app.delivery.queries import DeliveryQueryService
+
+    deps.delivery_query_service = DeliveryQueryService(
+        deps, deps.delivery_snapshot_repository
+    )
+    from app.exports.service import ExportService
+    from app.exports.storage import LocalExportStorage
+
+    deps.export_repository = InMemoryExportRepository()
+    deps.export_service = ExportService(
+        deps.delivery_query_service,
+        deps.export_repository,
+        LocalExportStorage(settings.export_dir),
     )
     return deps

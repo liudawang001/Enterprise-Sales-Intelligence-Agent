@@ -87,6 +87,8 @@ class AgentState(TypedDict, total=False):
     execution_snapshot_id: str | None
     lead_results: list[dict]
     export_spec: dict | None
+    export_id: str | None
+    artifact_ref: str | None
     export_path: str | None
     response_text: str | None
     citations: list[dict]

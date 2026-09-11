@@ -25,6 +25,7 @@ class InMemoryLeadScoreRepository:
         self.profiles: dict[str, ScoringProfile] = {}
         self.scores: dict[str, LeadScore] = {}
         self.reasons: dict[str, RecommendationReason] = {}
+        self.reasons_by_score: dict[str, RecommendationReason] = {}
         self.lead_sets: dict[str, VerifiedLeadSet] = {}
 
     def save_profile(self, value: ScoringProfile) -> ScoringProfile:
@@ -45,8 +46,12 @@ class InMemoryLeadScoreRepository:
         self.scores[value.lead_score_id] = deepcopy(value)
         return deepcopy(value)
 
-    def save_reason(self, value: RecommendationReason) -> RecommendationReason:
+    def save_reason(
+        self, value: RecommendationReason, *, lead_score_id: str | None = None
+    ) -> RecommendationReason:
         self.reasons[value.enterprise_id] = deepcopy(value)
+        if lead_score_id:
+            self.reasons_by_score[lead_score_id] = deepcopy(value)
         return deepcopy(value)
 
     def save_lead_set(self, value: VerifiedLeadSet) -> VerifiedLeadSet:
@@ -59,6 +64,31 @@ class InMemoryLeadScoreRepository:
     def get_for_enterprise(self, enterprise_id: str) -> LeadScore | None:
         values = [item for item in self.scores.values() if item.enterprise_id == enterprise_id]
         return deepcopy(values[-1]) if values else None
+
+    def get_lead_set(self, lead_set_id: str | None) -> VerifiedLeadSet | None:
+        value = self.lead_sets.get(lead_set_id or "")
+        return deepcopy(value) if value else None
+
+    def scores_for_set(self, lead_set: VerifiedLeadSet) -> list[LeadScore]:
+        values = [
+            item
+            for item in self.scores.values()
+            if item.task_id == lead_set.task_id
+            and item.task_version == lead_set.task_version
+            and item.criteria_snapshot_id == lead_set.criteria_snapshot_id
+            and item.scoring_profile_id == lead_set.scoring_profile_id
+            and item.enterprise_id in lead_set.lead_ids
+        ]
+        latest = {}
+        for item in sorted(values, key=lambda score: score.created_at):
+            latest[item.enterprise_id] = item
+        return [deepcopy(latest[item]) for item in lead_set.lead_ids if item in latest]
+
+    def reason_for_score(self, score: LeadScore) -> RecommendationReason | None:
+        value = self.reasons_by_score.get(score.lead_score_id) or self.reasons.get(
+            score.enterprise_id
+        )
+        return deepcopy(value) if value else None
 
 
 class LeadScoreRepository:

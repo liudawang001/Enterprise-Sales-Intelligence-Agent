@@ -53,6 +53,8 @@ class Settings(BaseSettings):
     verification_max_extra_calls: int = 100
     verification_max_calls_per_entity: int = 3
     verification_max_rounds: int = 1
+    export_dir: str = "data/exports"
+    delivery_max_page_size: int = 100
 
 
 @lru_cache

@@ -7,6 +7,7 @@ from langgraph.graph import END, START, StateGraph
 from app.agent.dependencies import AgentDependencies
 from app.agent.enums import IntentType, MutationScope
 from app.agent.nodes.context import load_context
+from app.agent.nodes.export import make_export_node
 from app.agent.nodes.intent import classify_intent
 from app.agent.nodes.reexecution import (
     make_filter_existing,
@@ -112,14 +113,7 @@ def build_main_graph(deps: AgentDependencies, *, checkpointer=None, knowledge_se
     builder.add_node("compose_lead_response", lambda state: compose_lead_response(state, deps))
     builder.add_node("answer_lead_query", lambda state: _lead_query_node(state, deps))
     builder.add_node("resolve_read_task", make_resolve_read_task(deps))
-    builder.add_node("export_results", lambda state: {
-        "response_text": "已解析目标任务及结果集；正式 Excel 导出将在 Phase 7 实现。",
-        "export_spec": {
-            "task_id": state.get("target_task_id"),
-            "task_version": (deps.task_repository.get_task(state.get("target_task_id")).version if deps.task_repository.get_task(state.get("target_task_id")) else None),
-            "lead_set_id": (deps.execution_snapshot_repository.current(state.get("target_task_id")).lead_score_set_id if deps.execution_snapshot_repository.current(state.get("target_task_id")) else None),
-        },
-    })
+    builder.add_node("export_results", make_export_node(deps))
     builder.add_node("general_chat", _response_node("我可以帮助你基于业务证据和结构化筛选条件完成政企营销潜客发现。"))
     builder.add_node("planning_error", _planning_error_node)
 
