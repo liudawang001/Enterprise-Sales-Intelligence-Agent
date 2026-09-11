@@ -2,7 +2,7 @@
 
 **Enterprise Sales Intelligence Agent（政企营销智能体）** 是一套面向政企营销场景的状态化智能 Agent。系统通过 RAG 获取产品、套餐和营销活动知识，结合多轮对话形成结构化营销任务，并编排企业信息、地图、Web Search 与企业官网等多源工具，实现企业潜客发现、情报补全、实体归一化、证据核验、潜客评分及 Excel 交付。
 
-## Phase 1 / Phase 2 / Phase 3 / Phase 4 / Phase 5 / Phase 6 范围
+## Phase 1 / Phase 2 / Phase 3 / Phase 4 / Phase 5 / Phase 6 / Phase 7 范围
 
 Phase 1 实现 LangGraph Agent Runtime 与离线 Mock Workflow：多 Intent 入口、结构化 `LeadTask`、Required Slot 校验、真实 `interrupt()` / `Command(resume=...)`、MemorySaver、Mock Business Planning、Mock Research、Mock Lead Scoring、Mutation Skeleton 和 FastAPI `/api/chat`。
 
@@ -13,6 +13,83 @@ Phase 3 将业务知识编译为带来源、版本和冲突处理的 `LeadCriter
 Phase 5 将多源 Candidate 转换为 `CanonicalEnterprise`，对每个业务字段独立建立 Evidence、归一化、冲突检测和主值选择，生成 Task-aware `VerifiedEnterpriseProfile`。最终排序由版本化的确定性 Scoring Profile 计算，LLM 仅能解释既有分数和合法 Evidence ID。
 
 Phase 6 将对话升级为多 Task、不可变 Task Version 和依赖感知的局部重执行系统。自然语言修改先经过 `TaskReferenceResolver`、`MutationPreview`、`TaskDiff / CriteriaDiff` 与 `ArtifactReuseContext`，再由确定性 `TaskMutationPlanner` 选择最小安全 Scope。旧执行可以完成并保留历史，但版本栅栏禁止它覆盖新版本的 current head。
+
+Phase 7 将某个明确 Task Version 的 Verified Lead、Lead Score 与字段级 Evidence 冻结为不可变 `DeliverySnapshot`。React Workspace 和 Excel Export 只消费同一个 Delivery Read Model，因此排名、评分、核验状态、公开联系方式与 Evidence lineage 不会在 UI 和工作簿之间产生两套口径。导出固定 Snapshot，后续 Task Mutation 不会改变已生成 Artifact。
+
+## Phase 7 Delivery Workspace
+
+```text
+Task Version + Execution Snapshot
+        |
+        v
+DeliverySnapshot -> DeliveryLeadRow / TaskSummaryDTO / LeadDetailDTO
+        |                                      |
+        v                                      v
+React Workspace                         ExportSpec / ExportJob
+                                               |
+                                               v
+                                      OpenPyXL -> XLSX Artifact
+```
+
+Workspace 提供 Task List、Conversation、Version Selector、SSE Progress、服务端分页/排序/筛选的 Lead Table、Lead Detail Drawer、字段核验、Evidence/Conflict、Score Breakdown、Export Panel、Export History 和下载。桌面端为三栏工作台，小屏为任务/对话/潜客三个 Tab。
+
+历史版本通过 `/tasks/{task_id}?version={version}` 表达。历史视图显示 `Historical Version · 只读查看`，禁止从旧版本直接发起 Mutation；导出仍绑定所查看的旧 Snapshot，而不是自动跳到 current head。
+
+Phase 7 Delivery API：
+
+```text
+GET  /api/tasks
+GET  /api/tasks/{task_id}
+GET  /api/tasks/{task_id}/versions
+GET  /api/tasks/{task_id}/versions/{version}
+GET  /api/tasks/{task_id}/versions/{version}/leads
+GET  /api/tasks/{task_id}/versions/{version}/leads/{enterprise_id}
+GET  /api/tasks/{task_id}/versions/{version}/leads/{enterprise_id}/score
+GET  /api/enterprises/{enterprise_id}/evidence?task_id=...&version=...
+GET  /api/tasks/{task_id}/events
+GET  /api/tasks/{task_id}/events/stream
+GET  /api/exports/fields
+POST /api/exports
+GET  /api/exports/{export_id}
+GET  /api/exports/{export_id}/events
+GET  /api/exports/{export_id}/download
+GET  /api/tasks/{task_id}/exports
+```
+
+XLSX 可包含五个真实 Sheet：
+
+| Sheet | 内容 |
+|---|---|
+| `潜客清单` | 用户选择的受控字段、排名、评分与核验状态 |
+| `评分说明` | 已持久化的评分组件与 Scoring Profile Version |
+| `证据摘要` | 字段主值、状态、置信度、来源、URL 与 Evidence 计数 |
+| `任务信息` | Task Version、Criteria、Lead/Score Set、Snapshot 与 Export ID |
+| `冲突明细` | 主值、备选值及对应来源，按导出选项生成 |
+
+导出字段来自 `ExportFieldRegistry` allowlist；未知或敏感字段会被拒绝。任一已选择事实字段存在缺失时返回 `EXPORT_FIELD_DATA_INCOMPLETE`，ExportService 不会偷偷发起 Search 或补全。工作簿会防御公式注入，只将 HTTP/HTTPS 设为 Hyperlink，并清理文件名路径穿越字符。下载只读取已有 Artifact，并返回 SHA-256。
+
+### 启动与 Demo
+
+后端：
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e '.[dev]'
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+前端：
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+打开 `http://127.0.0.1:5173/workspace`，在对话区输入“帮我找上海松江 3 家集团 V 网潜客”。任务完成后在潜客表点击企业名称查看字段状态、Evidence、冲突与 Score Breakdown；点击“导出”选择 Top N、字段和附加 Sheet，生成后可从面板或 Export History 下载。
+
+默认 Demo 使用确定性 Fake Provider 和内存 Repository，不访问外部付费服务。页面展示的企业、电话、评分和证据均为合成演示数据，不代表真实企业情报或中国移动正式营销标准。
 
 ## 当前架构
 
@@ -83,6 +160,21 @@ python -m evals.mutation.run_mutation_eval
 ```
 
 当前固定数据包含 60 个 Mutation Scope case、20 个 Artifact Reuse case 和 20 个 Version/Stale case。CI Gate 包括 Scope Accuracy、Unsafe Under-reexecution Rate、Unnecessary Full Replan Rate、Artifact Reuse Correctness、Version Fence Correctness 与 Mutation Idempotency；这些是确定性合成工程指标，不代表生产流量效果。
+
+Phase 7 固定评测：
+
+```bash
+python -m evals.delivery.run_delivery_eval
+python -m scripts.benchmark_phase7_delivery
+```
+
+固定数据包含 20 个 Snapshot Consistency、20 个 Export Field、20 个 Evidence Display、10 个 Historical Version 与 10 个 Security case。Gate 覆盖 Snapshot Version Accuracy、UI/Excel Critical Field Consistency、Export Field Accuracy/Allowlist、Evidence Traceability、Export Idempotency、Workbook Parse、Unsafe Hyperlink、Formula Injection、Filename Traversal 与 Historical Version Accuracy。
+
+2026-09-11 本地内存测试环境实测：1000 条 Delivery Projection、100 次 Lead List 查询的 P95 为 `277.237 ms`；完整五 Sheet XLSX 的 100 行生成耗时 `183.370 ms`、大小 `93,203 bytes`，1000 行生成耗时 `2,065.972 ms`、大小 `820,035 bytes`（证据摘要 13,000 行）。本地 Vite 开发服务器的 Chrome 首屏采样为 TTFB `3 ms`、FCP `68 ms`、LCP `68 ms`、CLS `0.08`。这些是单次本地合成数据测量，不是生产 SLA。
+
+### Phase 7 边界
+
+Phase 7 不实现 Production Engineering：尚未提供生产级鉴权/RBAC、多租户隔离、对象存储与签名 URL、异步队列/Worker、分布式事件总线、可观测性告警、备份恢复、限流、生产部署与真实数据合规治理；这些属于 Phase 8。
 
 ## Phase 5 Verification Architecture
 
@@ -244,19 +336,13 @@ python -m evals.phase5.run_evidence_scoring_eval
 
 当前 54 个实体 Pair 的 Precision / Recall / F1 / SAME_ENTITY Precision 均为 `1.000`，不同信用代码 Hard Negative Accuracy 为 `1.000`。30 个 Evidence case 的 Conflict Detection、Primary Value Selection、Source Traceability 均为 `1.000`；30 个 Scoring case 的 Determinism、Monotonicity、Profile Reproducibility 与硬必需字段缺失 `NOT_SCORABLE` 正确率均为 `1.000`。这些是固定合成 Demo 数据集指标，不代表生产数据表现。
 
-## 安装与启动
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -e '.[dev]'
-uvicorn app.main:app --reload
-```
-
 ## 测试
 
 ```bash
 pytest
+pytest -m integration
+cd frontend && npm test
+cd frontend && npm run build
 ```
 
 所有测试离线运行，不需要 OpenAI、高德或企业信息 API Key。
