@@ -45,7 +45,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         title="Enterprise Sales Intelligence Agent", version="0.8.0", lifespan=application_lifespan(settings)
     )
     application.state.settings = settings
-    deps = build_dependencies()
+    deps = build_dependencies(settings)
     application.state.dependencies = deps
     knowledge_repository = InMemoryKnowledgeRepository()
     application.state.knowledge_repository = knowledge_repository

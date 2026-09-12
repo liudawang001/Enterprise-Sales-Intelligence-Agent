@@ -183,6 +183,24 @@ class Settings(BaseSettings):
                 raise ValueError("JWT issuer, audience and JWKS URL are required in production")
             if "postgres:postgres@" in self.database_url:
                 raise ValueError("default database credentials are forbidden in production")
+            if "*" in self.cors_origins:
+                raise ValueError("wildcard CORS is forbidden in production")
+            if self.rag_debug or self.rule_debug:
+                raise ValueError("debug output is forbidden in production")
+            provider_requirements = {
+                "ENTERPRISE_PROVIDER=commercial": self.enterprise_provider == "commercial",
+                "ENTERPRISE_API_BASE_URL": bool(self.enterprise_api_base_url),
+                "ENTERPRISE_API_KEY": bool(self.enterprise_api_key),
+                "MAP_PROVIDER=amap": self.map_provider == "amap",
+                "AMAP_API_KEY": bool(self.amap_api_key),
+                "WEB_SEARCH_PROVIDER=tavily": self.web_search_provider == "tavily",
+                "TAVILY_API_KEY": bool(self.tavily_api_key),
+                "WEB_FETCH_PROVIDER=firecrawl": self.web_fetch_provider == "firecrawl",
+                "FIRECRAWL_API_KEY": bool(self.firecrawl_api_key),
+            }
+            missing = [name for name, configured in provider_requirements.items() if not configured]
+            if missing:
+                raise ValueError("real provider configuration is required in production: " + ", ".join(missing))
         if self.run_heartbeat_seconds >= self.run_lease_seconds:
             raise ValueError("RUN_HEARTBEAT_SECONDS must be lower than RUN_LEASE_SECONDS")
         for name, value in {
