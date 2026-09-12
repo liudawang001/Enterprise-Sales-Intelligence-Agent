@@ -26,6 +26,7 @@ class TaskPatch(BaseModel):
 class LeadTask(BaseModel):
     task_id: str
     session_id: str
+    workspace_id: str = "local"
     business: str | None = None
     region: str | None = None
     target_count: int | None = None

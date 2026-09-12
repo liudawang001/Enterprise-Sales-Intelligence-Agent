@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from app.domain.task import TaskPatch
 from app.mutation.service import InvalidTaskPatchError
 from app.repositories.mock_task_repository import TaskVersionConflictError
+from app.security.workspace import scoped_task
 
 router = APIRouter(prefix="/api", tags=["mutations"])
 
@@ -20,6 +21,7 @@ class StructuredMutationRequest(BaseModel):
 
 @router.post("/tasks/{task_id}/mutations")
 async def create_mutation(task_id: str, payload: StructuredMutationRequest, request: Request) -> dict:
+    scoped_task(request, task_id)
     service = request.app.state.dependencies.mutation_service
     try:
         mutation, _ = service.mutate(task_id=task_id, base_version=payload.base_version, source_message_id=payload.source_message_id, patch=payload.patch)
@@ -39,6 +41,7 @@ async def create_mutation(task_id: str, payload: StructuredMutationRequest, requ
 
 @router.get("/tasks/{task_id}/mutations/{mutation_id}")
 async def get_mutation(task_id: str, mutation_id: str, request: Request) -> dict:
+    scoped_task(request, task_id)
     value = request.app.state.dependencies.mutation_repository.get_mutation(mutation_id)
     if not value or value.task_id != task_id:
         raise HTTPException(404, "MUTATION_NOT_FOUND")

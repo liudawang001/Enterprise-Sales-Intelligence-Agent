@@ -21,6 +21,7 @@ class LeadTaskRecord(Base):
     __tablename__ = "lead_tasks"
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
     thread_id: Mapped[str] = mapped_column(String(255), index=True)
+    workspace_id: Mapped[str] = mapped_column(String(120), index=True, default="local")
     business_code: Mapped[str | None] = mapped_column(String(80))
     active_version: Mapped[int] = mapped_column(Integer)
     stage: Mapped[str] = mapped_column(String(40))

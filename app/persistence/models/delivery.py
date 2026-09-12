@@ -35,6 +35,7 @@ class ExportRecord(Base):
         index=True,
     )
     task_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    workspace_id: Mapped[str] = mapped_column(String(120), nullable=False, default="local", index=True)
     task_version: Mapped[int] = mapped_column(Integer, nullable=False)
     format: Mapped[str] = mapped_column(String(16), nullable=False)
     fields_json: Mapped[list] = mapped_column(JSONB, nullable=False)

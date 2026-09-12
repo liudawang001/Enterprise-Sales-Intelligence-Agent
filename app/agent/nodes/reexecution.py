@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from langchain_core.runnables import RunnableLambda
 
 from app.agent.dependencies import AgentDependencies
 from app.agent.state import AgentState
@@ -8,6 +9,8 @@ from app.criteria.evaluator import DefaultCriteriaEvaluator
 from app.execution.models import TaskExecutionSnapshot
 from app.mutation.models import ReexecutionPlan, ReexecutionPlanStatus
 from app.research.models import CandidateSet, CandidateStatus
+from app.observability.context import get_request_context
+from app.observability.metrics import metrics
 
 
 def _lead_rows(deps: AgentDependencies, task_id: str, lead_set_id: str | None) -> list[dict]:
@@ -135,7 +138,7 @@ def merge_verified_profiles(state: AgentState) -> dict:
 
 
 def make_promote_execution_snapshot(deps: AgentDependencies):
-    def node(state: AgentState) -> dict:
+    def promote(state: AgentState, fence_allowed: bool = True) -> dict:
         task = deps.task_repository.get_task(state["active_task_id"])
         version = state.get("task_version", task.version)
         reuse = state.get("artifact_reuse_context") or {}
@@ -166,6 +169,10 @@ def make_promote_execution_snapshot(deps: AgentDependencies):
             scoring_profile_id=state.get("scoring_profile_id") or reuse.get("scoring_profile_id"),
             lead_score_set_id=state.get("lead_set_id") or reuse.get("lead_score_set_id"),
         )
+        if not fence_allowed:
+            deps.execution_snapshot_repository.save(snapshot.model_copy(update={"is_current": False, "validity": "SUPERSEDED"}))
+            metrics.add("stale_promotion_rejected_total")
+            return {"execution_snapshot_id": snapshot.snapshot_id, "progress": {"event": "ARTIFACT_PROMOTION_REJECTED"}, "warnings": ["STALE_RUN_FENCE"]}
         promoted = deps.execution_snapshot_repository.promote(snapshot, current_task_version=task.version)
         event = "TASK_VERSION_ACTIVATED" if promoted else "ARTIFACT_PROMOTION_REJECTED"
         if plan_id:
@@ -174,4 +181,19 @@ def make_promote_execution_snapshot(deps: AgentDependencies):
                 deps.mutation_repository.save_plan(plan.model_copy(update={"status": ReexecutionPlanStatus.COMPLETED if promoted else ReexecutionPlanStatus.SUPERSEDED}))
         return {"execution_snapshot_id": snapshot.snapshot_id, "progress": {"event": event}, "warnings": [] if promoted else ["STALE_EXECUTION"]}
 
-    return node
+    def sync_node(state: AgentState) -> dict:
+        context = get_request_context()
+        allowed = True
+        if context and context.run_id and context.fence_token is not None:
+            validator = getattr(deps.execution_coordinator, "can_promote_cached", None)
+            allowed = validator(context.run_id, context.fence_token) if validator else True
+        return promote(state, allowed)
+
+    async def async_node(state: AgentState) -> dict:
+        context = get_request_context()
+        allowed = True
+        if context and context.run_id and context.fence_token is not None:
+            allowed = await deps.execution_coordinator.can_promote(context.run_id, context.fence_token)
+        return promote(state, allowed)
+
+    return RunnableLambda(sync_node, afunc=async_node, name="promote_execution_snapshot")

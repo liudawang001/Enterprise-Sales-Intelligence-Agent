@@ -18,6 +18,8 @@ class KnowledgeDocumentRecord(Base):
     business: Mapped[str | None] = mapped_column(String(120), index=True)
     document_type: Mapped[str | None] = mapped_column(String(80), index=True)
     region: Mapped[str | None] = mapped_column(String(80), index=True)
+    access_scope: Mapped[str] = mapped_column(String(24), index=True, default="GLOBAL")
+    workspace_id: Mapped[str | None] = mapped_column(String(120), index=True)
     authority: Mapped[str] = mapped_column(String(50), index=True)
     version: Mapped[str | None] = mapped_column(String(80))
     effective_from: Mapped[date | None] = mapped_column(Date, index=True)

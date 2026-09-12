@@ -71,6 +71,7 @@ class ExportJob(BaseModel):
     export_id: str = Field(default_factory=_id)
     snapshot_id: str
     task_id: str
+    workspace_id: str = "local"
     task_version: int
     status: ExportStatus = ExportStatus.PENDING
     format: str = "XLSX"

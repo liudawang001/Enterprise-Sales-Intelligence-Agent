@@ -22,15 +22,17 @@ class InMemoryExportRepository:
             self._successful_by_hash[value.request_hash] = value.export_id
         return deepcopy(value)
 
-    def get(self, export_id: str | None) -> ExportJob | None:
+    def get(self, export_id: str | None, workspace_id: str | None = None) -> ExportJob | None:
         value = self.jobs.get(export_id or "")
+        if value and workspace_id is not None and value.workspace_id != workspace_id:
+            return None
         return deepcopy(value) if value else None
 
     def successful_for_hash(self, request_hash: str) -> ExportJob | None:
         return self.get(self._successful_by_hash.get(request_hash))
 
-    def list_for_task(self, task_id: str) -> list[ExportJob]:
-        values = [item for item in self.jobs.values() if item.task_id == task_id]
+    def list_for_task(self, task_id: str, workspace_id: str | None = None) -> list[ExportJob]:
+        values = [item for item in self.jobs.values() if item.task_id == task_id and (workspace_id is None or item.workspace_id == workspace_id)]
         return [deepcopy(item) for item in sorted(values, key=lambda item: item.created_at, reverse=True)]
 
     def record_event(self, export_id: str, event: str, **data: object) -> None:
@@ -46,6 +48,7 @@ class ExportRepository:
         fields = {
             "snapshot_id": UUID(value.snapshot_id),
             "task_id": value.task_id,
+            "workspace_id": value.workspace_id,
             "task_version": value.task_version,
             "format": value.format,
             "fields_json": value.requested_fields,
@@ -82,6 +85,7 @@ class ExportRepository:
             export_id=str(record.id),
             snapshot_id=str(record.snapshot_id),
             task_id=record.task_id,
+            workspace_id=record.workspace_id,
             task_version=record.task_version,
             status=record.status,
             format=record.format,

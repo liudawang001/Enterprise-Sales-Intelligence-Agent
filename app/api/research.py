@@ -2,6 +2,7 @@ import json
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
+from app.security.workspace import scoped_task
 
 router = APIRouter(prefix="/api")
 
@@ -12,6 +13,7 @@ def _repository(request: Request):
 
 @router.get("/tasks/{task_id}/research")
 async def get_task_research(task_id: str, request: Request) -> dict:
+    scoped_task(request, task_id)
     run = _repository(request).get_run_for_task(task_id)
     if not run:
         raise HTTPException(404, "Research run not found")
@@ -20,6 +22,7 @@ async def get_task_research(task_id: str, request: Request) -> dict:
 
 @router.get("/tasks/{task_id}/candidates")
 async def get_task_candidates(task_id: str, request: Request) -> dict:
+    scoped_task(request, task_id)
     repository = _repository(request)
     run = repository.get_run_for_task(task_id)
     if not run:

@@ -8,6 +8,10 @@ from collections import defaultdict
 from collections.abc import Awaitable, Callable
 from time import monotonic
 from typing import Any
+from app.infrastructure.circuit_breaker import CircuitBreaker
+from app.infrastructure.rate_limit import provider_rate_key
+from app.observability.context import get_request_context
+from app.observability.metrics import metrics
 
 from app.research.models import (
     ResearchBudget,
@@ -90,6 +94,10 @@ class BoundedProviderRuntime:
         concurrency: dict[str, int] | None = None,
         cache_ttl_seconds: dict[str, int] | None = None,
         backoff_base: float = 0.01,
+        distributed_cache=None,
+        rate_limiter=None,
+        circuit_breaker: CircuitBreaker | None = None,
+        operation_timeout_seconds: float = 30.0,
     ) -> None:
         self.repository, self.guard, self.max_retries, self.backoff_base = (
             repository,
@@ -114,6 +122,10 @@ class BoundedProviderRuntime:
             "web_search": 21600,
             "web_fetch": 86400,
         }
+        self.distributed_cache = distributed_cache
+        self.rate_limiter = rate_limiter
+        self.circuit_breaker = circuit_breaker or CircuitBreaker()
+        self.operation_timeout_seconds = operation_timeout_seconds
 
     async def execute(
         self,
@@ -131,9 +143,16 @@ class BoundedProviderRuntime:
             digest, self.cache_ttl_seconds.get(operation)
         )
         if cached and cached.result:
+            metrics.add("provider_cache_hits_total", provider=provider, operation=operation)
             return cached.result
+        if self.distributed_cache:
+            cached_payload = await self.distributed_cache.get(provider, digest)
+            if cached_payload:
+                metrics.add("provider_cache_hits_total", provider=provider, operation=operation)
+                return ToolResult.model_validate(cached_payload["result"])
         result: ToolResult | None = None
         retry_count = 0
+        rate_limit_wait_ms = 0
         async with self.semaphores[operation]:
             for attempt in range(self.max_retries + 1):
                 if not await self.guard.reserve(operation):
@@ -145,7 +164,26 @@ class BoundedProviderRuntime:
                         ),
                     )
                     break
-                result = await call()
+                circuit_key = f"{provider}:{operation}"
+                if not await self.circuit_breaker.allow(circuit_key):
+                    result = ToolResult(status=ToolStatus.FAILED, provider=provider, error=ToolError(code="PROVIDER_CIRCUIT_OPEN", message="Provider circuit is open"))
+                    break
+                if self.rate_limiter:
+                    decision = await self.rate_limiter.acquire(provider_rate_key(provider, "configured", operation), capacity=10, refill_per_second=5)
+                    rate_limit_wait_ms += decision.retry_after_ms
+                    if not decision.allowed:
+                        metrics.add("provider_rate_limited_total", provider=provider, operation=operation)
+                        result = ToolResult(status=ToolStatus.FAILED, provider=provider, error=ToolError(code="PROVIDER_RATE_LIMITED", message="Provider quota limiter rejected request", retry_after_ms=decision.retry_after_ms))
+                        break
+                metrics.add("provider_calls_total", provider=provider, operation=operation)
+                try:
+                    result = await asyncio.wait_for(call(), timeout=self.operation_timeout_seconds)
+                except (TimeoutError, asyncio.TimeoutError):
+                    result = ToolResult(status=ToolStatus.FAILED, provider=provider, retryable=True, error=ToolError(code="PROVIDER_TIMEOUT", message="Provider operation timed out"))
+                if result.status in {ToolStatus.SUCCESS, ToolStatus.EMPTY}:
+                    await self.circuit_breaker.success(circuit_key)
+                elif result.retryable:
+                    await self.circuit_breaker.failure(circuit_key)
                 if (
                     result.status in {ToolStatus.SUCCESS, ToolStatus.EMPTY}
                     or not result.retryable
@@ -162,6 +200,9 @@ class BoundedProviderRuntime:
                     )
                     await asyncio.sleep(delay)
         assert result is not None
+        if self.distributed_cache and result.status in {ToolStatus.SUCCESS, ToolStatus.EMPTY}:
+            await self.distributed_cache.set(provider, operation, digest, {"result": result.model_dump(mode="json"), "source_retrieved_at": result.source_retrieved_at.isoformat()})
+        context = get_request_context()
         self.repository.save_tool_run(
             ToolRun(
                 research_run_id=research_run_id,
@@ -174,8 +215,17 @@ class BoundedProviderRuntime:
                 status=result.status,
                 latency_ms=result.latency_ms,
                 retry_count=retry_count,
+                trace_id=context.trace_id if context else None,
+                run_id=context.run_id if context else None,
+                fence_token=context.fence_token if context else None,
+                cache_hit=False,
+                rate_limit_wait_ms=rate_limit_wait_ms,
+                provider_latency_ms=result.latency_ms,
                 error_code=result.error.code if result.error else None,
                 result=result,
             )
         )
+        metrics.add("provider_request_duration_seconds", result.latency_ms / 1000, provider=provider, operation=operation)
+        if result.status == ToolStatus.FAILED:
+            metrics.add("provider_errors_total", provider=provider, operation=operation, code=result.error.code if result.error else "UNKNOWN")
         return result

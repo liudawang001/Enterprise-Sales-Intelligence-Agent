@@ -20,6 +20,7 @@ from app.persistence.models.rule import (
     LeadCriteriaSnapshotRecord,
     MarketingRuleRecord,
 )
+from app.persistence.models.runtime import ExecutionRunRecord, TaskEventRecord
 from app.persistence.models.task import (
     LeadTaskRecord,
     LeadTaskVersionRecord,
@@ -44,4 +45,4 @@ from app.persistence.models.verification import (
     VerifiedLeadSetRecord,
 )
 
-__all__ = ["BusinessCatalogRecord", "BusinessRuleEvidenceRecord", "BusinessRuleRecord", "CandidateSetMemberRecord", "CandidateSetRecord", "CanonicalEnterpriseRecord", "DeliverySnapshotRecord", "EnterpriseCandidateLinkRecord", "EnterpriseCandidateRecord", "EnterpriseEvidenceRecord", "EnterpriseLocationRecord", "EnterpriseRelationRecord", "EntityResolutionDecisionRecord", "EntityResolutionRunRecord", "ExportRecord", "KnowledgeChunkRecord", "KnowledgeDocumentRecord", "LeadCriteriaSnapshotRecord", "LeadScoreRecord", "LeadTaskRecord", "LeadTaskVersionRecord", "MarketingRuleRecord", "RecommendationReasonRecord", "ResearchBatchRecord", "ResearchRunRecord", "ResearchSearchPlanRecord", "ResearchSourceRecordModel", "ResolvedFieldRecord", "ScoringProfileRecord", "TaskExecutionSnapshotRecord", "TaskMutationRecord", "TaskReexecutionPlanRecord", "ToolRunRecord", "VerificationRunRecord", "VerifiedEnterpriseProfileRecord", "VerifiedLeadSetRecord"]
+__all__ = ["BusinessCatalogRecord", "BusinessRuleEvidenceRecord", "BusinessRuleRecord", "CandidateSetMemberRecord", "CandidateSetRecord", "CanonicalEnterpriseRecord", "DeliverySnapshotRecord", "EnterpriseCandidateLinkRecord", "EnterpriseCandidateRecord", "EnterpriseEvidenceRecord", "EnterpriseLocationRecord", "EnterpriseRelationRecord", "EntityResolutionDecisionRecord", "EntityResolutionRunRecord", "ExecutionRunRecord", "ExportRecord", "KnowledgeChunkRecord", "KnowledgeDocumentRecord", "LeadCriteriaSnapshotRecord", "LeadScoreRecord", "LeadTaskRecord", "LeadTaskVersionRecord", "MarketingRuleRecord", "RecommendationReasonRecord", "ResearchBatchRecord", "ResearchRunRecord", "ResearchSearchPlanRecord", "ResearchSourceRecordModel", "ResolvedFieldRecord", "ScoringProfileRecord", "TaskEventRecord", "TaskExecutionSnapshotRecord", "TaskMutationRecord", "TaskReexecutionPlanRecord", "ToolRunRecord", "VerificationRunRecord", "VerifiedEnterpriseProfileRecord", "VerifiedLeadSetRecord"]

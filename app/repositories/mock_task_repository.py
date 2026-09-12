@@ -8,6 +8,7 @@ from app.agent.enums import TaskStage, TaskStatus
 from app.domain.task import LeadTask, TaskPatch
 from app.mutation.preview import apply_patch_pure
 from app.tasks.models import TaskVersion
+from app.observability.context import get_request_context
 
 
 class TaskVersionConflictError(ValueError):
@@ -28,34 +29,48 @@ class MockTaskRepository:
         self._create_requests: dict[tuple[str, str], str] = {}
         self._mutation_requests: dict[tuple[str, str], int] = {}
 
+    @staticmethod
+    def _workspace_id() -> str:
+        context = get_request_context()
+        principal = context.principal if context else None
+        return getattr(principal, "workspace_id", "local")
+
     def create_task(self, session_id: str, source_message_id: str | None = None) -> LeadTask:
+        workspace_id = self._workspace_id()
         if source_message_id:
-            existing_id = self._create_requests.get((session_id, source_message_id))
+            existing_id = self._create_requests.get((f"{workspace_id}:{session_id}", source_message_id))
             if existing_id:
                 return self.get_task(existing_id)  # type: ignore[return-value]
         task = LeadTask(
             task_id=str(uuid4()),
             session_id=session_id,
+            workspace_id=workspace_id,
             stage=TaskStage.COLLECTING_REQUIREMENTS,
             status=TaskStatus.RUNNING,
             source_message_id=source_message_id,
         )
         self._tasks[task.task_id] = deepcopy(task)
         self._versions[task.task_id] = [TaskVersion.from_task(task)]
-        self._active_by_session[session_id] = task.task_id
+        self._active_by_session[f"{workspace_id}:{session_id}"] = task.task_id
         if source_message_id:
-            self._create_requests[(session_id, source_message_id)] = task.task_id
+            self._create_requests[(f"{workspace_id}:{session_id}", source_message_id)] = task.task_id
         return deepcopy(task)
 
-    def get_task(self, task_id: str | None) -> LeadTask | None:
+    def get_task(self, task_id: str | None, workspace_id: str | None = None) -> LeadTask | None:
         value = self._tasks.get(task_id or "")
+        scope = workspace_id or self._workspace_id()
+        if value and value.workspace_id != scope:
+            return None
         return deepcopy(value) if value else None
 
     def get_active_task(self, session_id: str) -> LeadTask | None:
-        return self.get_task(self._active_by_session.get(session_id))
+        workspace_id = self._workspace_id()
+        return self.get_task(self._active_by_session.get(f"{workspace_id}:{session_id}"), workspace_id)
 
     def list_tasks(self, session_id: str | None = None) -> list[LeadTask]:
         values = list(self._tasks.values())
+        workspace_id = self._workspace_id()
+        values = [task for task in values if task.workspace_id == workspace_id]
         if session_id is not None:
             values = [task for task in values if task.session_id == session_id]
         return [deepcopy(task) for task in sorted(values, key=lambda task: task.created_at)]
@@ -64,7 +79,7 @@ class MockTaskRepository:
         task = self.get_task(task_id)
         if not task or task.session_id != session_id:
             raise KeyError("TASK_NOT_FOUND")
-        self._active_by_session[session_id] = task_id
+        self._active_by_session[f"{task.workspace_id}:{session_id}"] = task_id
         return task
 
     def update_task(
@@ -78,7 +93,7 @@ class MockTaskRepository:
     ) -> LeadTask:
         task = task.model_copy(update={"updated_at": datetime.now(UTC)})
         self._tasks[task.task_id] = deepcopy(task)
-        self._active_by_session[task.session_id] = task.task_id
+        self._active_by_session[f"{task.workspace_id}:{task.session_id}"] = task.task_id
         if record_version:
             versions = self._versions.setdefault(task.task_id, [])
             if not any(item.version == task.version for item in versions):
@@ -149,3 +164,11 @@ class MockTaskRepository:
 
     def snapshot(self) -> dict[str, LeadTask]:
         return deepcopy(self._tasks)
+
+    def restore_task(self, task: LeadTask, versions: list[TaskVersion] | None = None) -> LeadTask:
+        self._tasks[task.task_id] = deepcopy(task)
+        self._versions[task.task_id] = deepcopy(versions or [TaskVersion.from_task(task)])
+        self._active_by_session[f"{task.workspace_id}:{task.session_id}"] = task.task_id
+        if task.source_message_id:
+            self._create_requests[(f"{task.workspace_id}:{task.session_id}", task.source_message_id)] = task.task_id
+        return deepcopy(task)

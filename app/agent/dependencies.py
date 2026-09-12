@@ -24,6 +24,7 @@ from app.services.research_service import ResearchService
 from app.services.scoring_service import LeadScoringService, MockScoringService
 from app.services.task_service import TaskService
 from app.tasks.references import TaskReferenceResolver
+from app.runtime.leases import InMemoryExecutionCoordinator
 
 
 @dataclass
@@ -51,6 +52,7 @@ class AgentDependencies:
     export_repository: object | None = None
     export_service: object | None = None
     event_repository: object | None = None
+    execution_coordinator: object | None = None
 
 
 def build_dependencies() -> AgentDependencies:
@@ -122,6 +124,7 @@ def build_dependencies() -> AgentDependencies:
         ),
         mutation_repository=mutation_repository,
         execution_snapshot_repository=execution_snapshot_repository,
+        execution_coordinator=InMemoryExecutionCoordinator(),
         delivery_snapshot_repository=InMemoryDeliverySnapshotRepository(),
         task_reference_resolver=TaskReferenceResolver(repository),
     )
@@ -137,12 +140,15 @@ def build_dependencies() -> AgentDependencies:
         deps, deps.delivery_snapshot_repository
     )
     from app.exports.service import ExportService
-    from app.exports.storage import LocalExportStorage
+    from app.exports.storage import LocalExportStorage, S3CompatibleExportStorage
 
     deps.export_repository = InMemoryExportRepository()
+    storage = LocalExportStorage(settings.export_dir)
+    if settings.export_storage_backend == "s3":
+        storage = S3CompatibleExportStorage(bucket=settings.s3_bucket, endpoint_url=settings.s3_endpoint_url, region=settings.s3_region, access_key_id=settings.s3_access_key_id, secret_access_key=settings.s3_secret_access_key.get_secret_value(), signed_url_ttl_seconds=settings.export_signed_url_ttl_seconds)
     deps.export_service = ExportService(
         deps.delivery_query_service,
         deps.export_repository,
-        LocalExportStorage(settings.export_dir),
+        storage,
     )
     return deps

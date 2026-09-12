@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
+from app.security.workspace import scoped_task
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
@@ -22,9 +23,7 @@ async def list_tasks(request: Request, session_id: str | None = Query(default=No
 
 @router.get("/{task_id}")
 async def get_task(task_id: str, request: Request) -> dict:
-    task = request.app.state.dependencies.task_repository.get_task(task_id)
-    if not task:
-        raise HTTPException(404, "TASK_NOT_FOUND")
+    task = scoped_task(request, task_id)
     snapshot = request.app.state.dependencies.execution_snapshot_repository.current(task_id)
     try:
         summary = request.app.state.dependencies.delivery_query_service.freeze(
@@ -45,8 +44,7 @@ async def get_task(task_id: str, request: Request) -> dict:
 @router.get("/{task_id}/versions")
 async def list_task_versions(task_id: str, request: Request) -> list[dict]:
     repository = request.app.state.dependencies.task_repository
-    if not repository.get_task(task_id):
-        raise HTTPException(404, "TASK_NOT_FOUND")
+    scoped_task(request, task_id)
     service = request.app.state.dependencies.delivery_query_service
     return [
         service.task_version(task_id, item.version).model_dump(mode="json")
@@ -56,6 +54,7 @@ async def list_task_versions(task_id: str, request: Request) -> list[dict]:
 
 @router.get("/{task_id}/versions/{version}")
 async def get_task_version(task_id: str, version: int, request: Request) -> dict:
+    scoped_task(request, task_id)
     try:
         value = request.app.state.dependencies.delivery_query_service.task_version(
             task_id, version
@@ -67,6 +66,7 @@ async def get_task_version(task_id: str, version: int, request: Request) -> dict
 
 @router.post("/{task_id}/activate")
 async def activate_task(task_id: str, payload: ActivateTaskRequest, request: Request) -> dict:
+    scoped_task(request, task_id)
     try:
         task = request.app.state.dependencies.task_repository.activate_task(payload.session_id, task_id)
     except KeyError as exc:

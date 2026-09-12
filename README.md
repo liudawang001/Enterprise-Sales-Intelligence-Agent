@@ -2,11 +2,11 @@
 
 **Enterprise Sales Intelligence Agent（政企营销智能体）** 是一套面向政企营销场景的状态化智能 Agent。系统通过 RAG 获取产品、套餐和营销活动知识，结合多轮对话形成结构化营销任务，并编排企业信息、地图、Web Search 与企业官网等多源工具，实现企业潜客发现、情报补全、实体归一化、证据核验、潜客评分及 Excel 交付。
 
-## Phase 1 / Phase 2 / Phase 3 / Phase 4 / Phase 5 / Phase 6 / Phase 7 范围
+## Phase 1 / Phase 2 / Phase 3 / Phase 4 / Phase 5 / Phase 6 / Phase 7 / Phase 8 范围
 
 Phase 1 实现 LangGraph Agent Runtime 与离线 Mock Workflow：多 Intent 入口、结构化 `LeadTask`、Required Slot 校验、真实 `interrupt()` / `Command(resume=...)`、MemorySaver、Mock Business Planning、Mock Research、Mock Lead Scoring、Mutation Skeleton 和 FastAPI `/api/chat`。
 
-Phase 2 将 BusinessQA 升级为真实可追溯的 RAG Knowledge Engine：PDF 上传与按页解析、结构优先 Chunking、SHA-256 幂等、Embedding 抽象、Dense + 中文 Sparse 检索、Metadata/有效期/区域过滤、RRF、Reranker、No-Evidence Gate、页级 Citation 和离线 Evaluation。默认 Demo 使用内存 Repository 与确定性 FakeEmbedding；配置 PostgreSQL/pgvector 后可执行 Alembic migration 和 PGVectorStore 适配。
+Phase 2 将 BusinessQA 升级为真实可追溯的 RAG Knowledge Engine：PDF 上传与按页解析、结构优先 Chunking、SHA-256 幂等、Embedding 抽象、Dense + 中文 Sparse 检索、Metadata/有效期/区域过滤、RRF、Reranker、No-Evidence Gate、页级 Citation 和离线 Evaluation。默认 Demo 使用内存 Repository 与确定性 FakeEmbedding；配置 PostgreSQL/pgvector 后可执行 Alembic migration 和 PGVectorStore 适配。启用本地 BGE embedding/reranker 时安装 `local-embedding` extra，默认 API 镜像不携带 Torch/CUDA 模型栈。
 
 Phase 3 将业务知识编译为带来源、版本和冲突处理的 `LeadCriteria`。Phase 4 将该 Criteria 编译为有界 `SearchPlan`，通过企业数据、地图、Web Search 和 Web Fetch Provider 执行候选发现、低成本补全、Hard Filter 与有限深研。默认配置使用 Fake Provider，完整走相同 Provider/预算/来源链路且不消耗外部 credits；配置合法凭据后切换到真实适配器。
 
@@ -15,6 +15,10 @@ Phase 5 将多源 Candidate 转换为 `CanonicalEnterprise`，对每个业务字
 Phase 6 将对话升级为多 Task、不可变 Task Version 和依赖感知的局部重执行系统。自然语言修改先经过 `TaskReferenceResolver`、`MutationPreview`、`TaskDiff / CriteriaDiff` 与 `ArtifactReuseContext`，再由确定性 `TaskMutationPlanner` 选择最小安全 Scope。旧执行可以完成并保留历史，但版本栅栏禁止它覆盖新版本的 current head。
 
 Phase 7 将某个明确 Task Version 的 Verified Lead、Lead Score 与字段级 Evidence 冻结为不可变 `DeliverySnapshot`。React Workspace 和 Excel Export 只消费同一个 Delivery Read Model，因此排名、评分、核验状态、公开联系方式与 Evidence lineage 不会在 UI 和工作簿之间产生两套口径。导出固定 Snapshot，后续 Task Mutation 不会改变已生成 Artifact。
+
+Phase 8 完成生产工程化收口：生产 Graph 使用 PostgreSQL `AsyncPostgresSaver` 并在应用生命周期编译一次；Execution Lease/Fence 与 Task Version Fence 联合阻止重复或过期执行 Promote；Redis 提供可丢失缓存、原子 Token Bucket 和跨 Worker Stream，PostgreSQL 保留持久事件；Langfuse v4/OpenTelemetry、JSON 日志、脱敏、低基数指标与三层健康检查形成 `trace_id` 排障链路。JWT/OIDC、角色门禁、工作区过滤、受权下载、生产镜像、Nginx、迁移、备份恢复、CI、Fault 与 Load Test 提供可重复的生产治理。
+
+生产部署顺序固定为 `alembic upgrade head`、`python -m scripts.init_checkpointer`、启动 API。详见 [deployment](docs/deployment.md) 和 [runbook](docs/runbook.md)。默认 Demo 仍是本地内存业务 Repository 与 Fake Provider；“production-like”不表示已接入真实运营商私有数据、企业 IAM、Kubernetes 或多地域高可用。
 
 ## Phase 7 Delivery Workspace
 
@@ -174,7 +178,7 @@ python -m scripts.benchmark_phase7_delivery
 
 ### Phase 7 边界
 
-Phase 7 不实现 Production Engineering：尚未提供生产级鉴权/RBAC、多租户隔离、对象存储与签名 URL、异步队列/Worker、分布式事件总线、可观测性告警、备份恢复、限流、生产部署与真实数据合规治理；这些属于 Phase 8。
+Phase 7 的交付层不负责运行时治理；这些能力已在 Phase 8 的生产工程层补齐。当前仍需按部署环境另行建设 Kubernetes、多地域高可用、完整企业 IAM、运营商私有数据合规接入和真实外部 Provider smoke。
 
 ## Phase 5 Verification Architecture
 
@@ -405,12 +409,12 @@ python -m evals.rules.run_rule_eval
 
 当前自建数据集包含 30 条 Rule Extraction、20 条 Conflict 和 20 条 Criteria Case；实际结果为 Rule Exact Match `1.000`、Evidence Binding `1.000`、Conflict Accuracy `1.000`、Criteria Validity `1.000`。这是确定性 Demo 数据集结果，不代表真实 LLM 或生产数据表现。
 
-## 已完成与未实现
+## 已完成与边界
 
-已完成：Phase 1 Runtime、MainGraph、Intent/Mutation Router、任务版本、MemorySaver、FastAPI；Phase 2 PDF Ingestion、Chunking、Embedding 抽象、Dense/Sparse/Hybrid Retrieval、RRF、Reranker、Citation、No-Evidence Gate、Evaluation 和回归测试。
+已完成：Phase 1 Runtime、MainGraph、Intent/Mutation Router、任务版本、MemorySaver（开发模式）、FastAPI；Phase 2 PDF Ingestion、Chunking、Embedding 抽象、Dense/Sparse/Hybrid Retrieval、RRF、Reranker、Citation、No-Evidence Gate、Evaluation 和回归测试。
 
 Phase 4 已实现可配置的真实企业 API、高德、Tavily 和 Firecrawl adapters，以及有界多源研究工作流。本次环境未配置任何第三方 Key，因此真实 external smoke 未执行，不能声明真实 Provider E2E 已成功。
 
 Phase 5 已实现 Entity Resolution、字段级 Evidence Verification/Conflict Resolution、Targeted Verification、Verified Profile/Coverage、版本化确定性 Lead Score、Grounded Explain、API、PostgreSQL schema/adapters 和固定评测。
 
-尚未实现的 Phase 6～8 能力：对话任务控制的完整局部失效重算、正式 Excel/UI 交付、CRM 写回、生产级 PostgreSQL TaskRepository/AsyncPostgresSaver、Redis 分布式限流、多租户权限、Langfuse 生产观测、BI Dashboard、机器学习评分模型与 GraphRAG。
+Phase 6～8 已完成对话任务控制、局部重执行、Excel/UI 交付、PostgreSQL `AsyncPostgresSaver`、Execution Lease/Fence、Redis 分布式限流与事件、Langfuse v4 fail-open 观测、JWT/OIDC 工作区隔离、生产容器、备份恢复、CI、故障测试和负载脚本。CRM 写回、BI Dashboard、机器学习评分模型与 GraphRAG 不在本项目范围内。

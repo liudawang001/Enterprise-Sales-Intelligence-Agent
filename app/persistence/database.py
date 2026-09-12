@@ -3,8 +3,22 @@ from collections.abc import AsyncIterator
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 
 
-def create_database_engine(database_url: str, *, echo: bool = False) -> AsyncEngine:
-    return create_async_engine(database_url, echo=echo, pool_pre_ping=True)
+def create_database_engine(
+    database_url: str,
+    *,
+    echo: bool = False,
+    pool_size: int = 5,
+    max_overflow: int = 5,
+    pool_timeout: float = 30.0,
+) -> AsyncEngine:
+    return create_async_engine(
+        database_url,
+        echo=echo,
+        pool_pre_ping=True,
+        pool_size=pool_size,
+        max_overflow=max_overflow,
+        pool_timeout=pool_timeout,
+    )
 
 
 def create_session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:

@@ -16,6 +16,7 @@ from app.knowledge.rerank.fake import FakeReranker
 from app.knowledge.ingestion.tokenizer import JiebaLexicalTokenizer
 from app.providers.embedding.fake import DeterministicFakeEmbedding
 from app.providers.llm.fake import FakeChatModel
+from app.observability.context import get_request_context
 
 
 class KnowledgeService:
@@ -46,7 +47,9 @@ class KnowledgeService:
         rewritten = raw_query
         if business and ("适合" in raw_query or "客户" in raw_query):
             rewritten = f"{business}适用对象和办理条件"
-        return KnowledgeQuery(raw_query=raw_query, rewritten_query=rewritten, business=business, region=region, as_of_date=as_of_date, current_only=as_of_date is None)
+        request_context = get_request_context()
+        workspace_id = getattr(getattr(request_context, "principal", None), "workspace_id", None)
+        return KnowledgeQuery(raw_query=raw_query, rewritten_query=rewritten, business=business, region=region, as_of_date=as_of_date, current_only=as_of_date is None, workspace_id=workspace_id)
 
     def retrieve(self, query: KnowledgeQuery, *, top_k: int = 6) -> tuple[list[RetrievalHit], list[str]]:
         filter_ = self.filter_builder.build(query)

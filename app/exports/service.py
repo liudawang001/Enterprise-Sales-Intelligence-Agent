@@ -8,6 +8,7 @@ from app.exports.models import CreateExportRequest, ExportJob, ExportSpec, Expor
 from app.exports.registry import ExportFieldRegistry
 from app.exports.sanitizer import sanitize_filename
 from app.exports.workbook import build_workbook
+from app.observability.context import get_request_context
 
 
 class ExportError(ValueError):
@@ -88,6 +89,7 @@ class ExportService:
             ExportJob(
                 snapshot_id=bundle.snapshot.snapshot_id,
                 task_id=spec.task_id,
+                workspace_id=getattr(getattr(get_request_context(), "principal", None), "workspace_id", "local"),
                 task_version=spec.task_version,
                 requested_fields=list(spec.fields),
                 request_hash=request_hash,

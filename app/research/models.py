@@ -229,6 +229,7 @@ class ToolResult(BaseModel):
     latency_ms: int = 0
     retryable: bool = False
     error: ToolError | None = None
+    source_retrieved_at: datetime = Field(default_factory=_now)
 
 
 class ToolRun(BaseModel):
@@ -243,6 +244,12 @@ class ToolRun(BaseModel):
     status: ToolStatus
     latency_ms: int = 0
     retry_count: int = 0
+    trace_id: str | None = None
+    run_id: str | None = None
+    fence_token: int | None = None
+    cache_hit: bool = False
+    rate_limit_wait_ms: int = 0
+    provider_latency_ms: int | None = None
     error_code: str | None = None
     result: ToolResult | None = None
     started_at: datetime = Field(default_factory=_now)

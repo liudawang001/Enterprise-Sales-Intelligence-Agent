@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, "feat/**"]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: sales_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d sales_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+      redis:
+        image: redis:7.4-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      DATABASE_URL_SYNC: postgresql+psycopg://postgres:postgres@localhost:5432/sales_test
+      TEST_DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/sales_test
+      TEST_CHECKPOINT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/sales_test
+      TEST_REDIS_URL: redis://localhost:6379/15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e '.[dev]'
+      - name: Phase 8 lint
+        run: ruff check app/runtime app/infrastructure app/observability app/security app/health app/settings app/repositories/task_repository.py tests/runtime tests/infrastructure tests/faults tests/security tests/recovery tests/integration/test_phase8_postgres_runtime.py tests/integration/test_phase8_redis_runtime.py scripts/init_checkpointer.py loadtest/locustfile.py
+      - name: Phase 8 format check
+        run: ruff format --check app/runtime app/infrastructure app/observability app/security app/health app/settings app/repositories/task_repository.py tests/runtime tests/infrastructure tests/faults tests/security tests/recovery tests/integration/test_phase8_postgres_runtime.py tests/integration/test_phase8_redis_runtime.py scripts/init_checkpointer.py loadtest/locustfile.py
+      - run: alembic upgrade head
+      - run: pytest
+      - run: pytest -m integration
+      - run: pytest -m recovery
+      - run: pytest -m fault
+      - name: Deterministic evaluations
+        run: |
+          python -m evals.rag.run_retrieval_eval
+          python -m evals.rules.run_rule_eval
+          python -m evals.research.run_research_eval
+          python -m evals.entity.run_entity_eval
+          python -m evals.phase5.run_evidence_scoring_eval
+          python -m evals.mutation.run_mutation_eval
+          python -m evals.delivery.run_delivery_eval
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: npm audit --audit-level=high
+
+  security-and-containers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e '.[dev]'
+      - run: pip-audit
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: docker build -t sales-agent-api:test .
+      - run: docker build -t sales-agent-frontend:test frontend

@@ -1,10 +1,12 @@
 from fastapi import APIRouter, HTTPException, Query, Request
+from app.security.workspace import scoped_task
 
 router = APIRouter(prefix="/api")
 
 
 @router.get("/tasks/{task_id}/verification")
 async def get_task_verification(task_id: str, request: Request) -> dict:
+    scoped_task(request, task_id)
     run = request.app.state.dependencies.evidence_repository.latest_run_for_task(task_id)
     if not run:
         raise HTTPException(404, "Verification run not found")
@@ -23,6 +25,8 @@ async def get_enterprise_evidence(
     snapshot_id: str | None = Query(default=None),
 ) -> dict:
     deps = request.app.state.dependencies
+    if task_id:
+        scoped_task(request, task_id)
     if not deps.enterprise_repository.get_enterprise(enterprise_id):
         raise HTTPException(404, "Enterprise not found")
     if snapshot_id or task_id:
