@@ -1,5 +1,12 @@
-# Local project documentation (do not publish)
-docs/
+# Local project documentation (do not publish by default)
+docs/*
+!docs/PHASE_IMPLEMENTATION_AUDIT.md
+!docs/FINAL_ACCEPTANCE_REPORT.md
+!docs/RELEASE_NOTES_v1.0.0.md
+!docs/ARCHITECTURE_v1.0.md
+!docs/DEPLOYMENT_RUNBOOK.md
+!docs/RECOVERY_RUNBOOK.md
+!docs/DEMO_GUIDE.md
 
 # macOS metadata
 .DS_Store
