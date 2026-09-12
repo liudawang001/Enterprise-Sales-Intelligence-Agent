@@ -1,0 +1,95 @@
+{
+  "executed_at": "2026-09-12T23:24:00+08:00",
+  "source_commit": "f699090",
+  "status": "PASS",
+  "commands": [
+    "python -m evals.rag.run_retrieval_eval",
+    "python -m evals.rules.run_rule_eval",
+    "python -m evals.research.run_research_eval",
+    "python -m evals.entity.run_entity_eval",
+    "python -m evals.phase5.run_evidence_scoring_eval",
+    "python -m evals.mutation.run_mutation_eval",
+    "python -m evals.delivery.run_delivery_eval"
+  ],
+  "rag": {
+    "dataset_size": 30,
+    "answerable": 24,
+    "negative": 6,
+    "dense_recall_at_5": 1.0,
+    "dense_mrr": 0.792,
+    "sparse_recall_at_5": 1.0,
+    "sparse_mrr": 0.938,
+    "hybrid_recall_at_5": 1.0,
+    "hybrid_mrr": 0.854,
+    "hybrid_reranker_recall_at_5": 1.0,
+    "hybrid_reranker_mrr": 0.854,
+    "no_evidence_abstention": 1.0,
+    "citation_coverage": 1.0
+  },
+  "rule": {
+    "rule_exact_match": 1.0,
+    "evidence_binding": 1.0,
+    "conflict_accuracy": 1.0,
+    "criteria_validity": 1.0
+  },
+  "research": {
+    "case_count": 70,
+    "search_plan_schema_validity": 1.0,
+    "hard_constraint_coverage": 1.0,
+    "budget_validity": 1.0
+  },
+  "entity": {
+    "cases": 54,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "same_entity_precision": 1.0,
+    "different_credit_code_hard_negative_accuracy": 1.0
+  },
+  "evidence": {
+    "cases": 30,
+    "conflict_detection_accuracy": 1.0,
+    "primary_value_selection_accuracy": 1.0,
+    "source_traceability": 1.0
+  },
+  "scoring": {
+    "cases": 30,
+    "determinism": 1.0,
+    "monotonicity": 1.0,
+    "profile_reproducibility": 1.0,
+    "hard_required_missing_not_scorable": 1.0
+  },
+  "mutation": {
+    "scope_case_count": 60,
+    "reuse_case_count": 20,
+    "version_case_count": 20,
+    "mutation_scope_accuracy": 1.0,
+    "unsafe_under_reexecution_rate": 0.0,
+    "unnecessary_full_replan_rate": 0.0,
+    "artifact_reuse_correctness": 1.0,
+    "version_fence_correctness": 1.0,
+    "mutation_idempotency": 1.0
+  },
+  "delivery": {
+    "snapshot_case_count": 20,
+    "export_field_case_count": 20,
+    "evidence_case_count": 20,
+    "historical_case_count": 10,
+    "security_case_count": 10,
+    "snapshot_version_accuracy": 1.0,
+    "ui_excel_critical_field_consistency": 1.0,
+    "export_field_accuracy": 1.0,
+    "export_field_allowlist_enforcement": 1.0,
+    "evidence_traceability": 1.0,
+    "export_idempotency": 1.0,
+    "workbook_parse_success": 1.0,
+    "unsafe_hyperlink_rejection": 1.0,
+    "formula_injection_protection": 1.0,
+    "filename_traversal_protection": 1.0,
+    "historical_version_accuracy": 1.0
+  },
+  "limitations": [
+    "All reported metrics are from deterministic synthetic fixtures.",
+    "No external-provider quality metric was run because credentials were not available."
+  ]
+}
