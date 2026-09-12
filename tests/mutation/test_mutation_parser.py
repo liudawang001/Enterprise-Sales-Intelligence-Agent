@@ -10,6 +10,7 @@ from app.agent.dependencies import build_dependencies
         ("改成30家", {"target_count": 30, "constraints": []}),
         ("最好物流企业", {"constraints": [{"field": "industry", "operation": "ADD", "operator": "EQ", "value": "物流", "constraint_type": "SOFT"}]}),
         ("必须在浦东", {"region": "上海浦东", "constraints": []}),
+        ("改成上海浦东", {"region": "上海浦东", "constraints": []}),
         ("再补官网", {"required_fields": ["company_name", "phone", "address", "website"], "constraints": []}),
     ],
 )
