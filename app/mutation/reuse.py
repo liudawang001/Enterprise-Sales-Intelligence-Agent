@@ -10,6 +10,23 @@ def _complete_fields(items: list[dict]) -> set[str]:
     return set.intersection(*sets) if sets else set()
 
 
+def _complete_verified_fields(items: list[dict]) -> set[str]:
+    if not items:
+        return set()
+    complete = []
+    for fields in items:
+        complete.append(
+            {
+                field_name
+                for field_name, resolved in fields.items()
+                if isinstance(resolved, dict)
+                and resolved.get("primary_value") not in (None, "", [], {})
+                and resolved.get("status") != "MISSING"
+            }
+        )
+    return set.intersection(*complete) if complete else set()
+
+
 class ArtifactReuseAnalyzer:
     def __init__(self, deps) -> None:
         self.deps = deps
@@ -24,11 +41,23 @@ class ArtifactReuseAnalyzer:
         researched = research_repo.get_candidates(snapshot.researched_candidate_set_id)
         plan = research_repo.plans.get(snapshot.search_plan_id or "")
         profile_ids = []
-        lead_set = self.deps.lead_score_repository.lead_sets.get(snapshot.lead_score_set_id or "") if self.deps.lead_score_repository else None
+        lead_set = (
+            self.deps.lead_score_repository.lead_sets.get(snapshot.lead_score_set_id or "")
+            if self.deps.lead_score_repository
+            else None
+        )
         if self.deps.evidence_repository:
             run = self.deps.evidence_repository.latest_run_for_task(task_id)
             profile_ids = list(run.profile_ids) if run else []
-        profiles = [self.deps.evidence_repository.profiles[item].model_dump(mode="json") for item in profile_ids if item in self.deps.evidence_repository.profiles] if self.deps.evidence_repository else []
+        profiles = (
+            [
+                self.deps.evidence_repository.profiles[item].model_dump(mode="json")
+                for item in profile_ids
+                if item in self.deps.evidence_repository.profiles
+            ]
+            if self.deps.evidence_repository
+            else []
+        )
         pushdown_fields: set[str] = set()
         enrichment_fields: set[str] = set()
         if plan:
@@ -52,9 +81,10 @@ class ArtifactReuseAnalyzer:
             scored_lead_count=lead_set.lead_count if lead_set else 0,
             scoring_profile_id=snapshot.scoring_profile_id,
             available_candidate_fields=_complete_fields([item.model_dump(mode="json") for item in (raw or researched)]),
-            available_verified_fields=_complete_fields([value.get("fields", {}) for value in profiles]),
+            available_verified_fields=_complete_verified_fields([value.get("fields", {}) for value in profiles]),
             discovery_pushdown_fields=pushdown_fields,
             post_filter_fields=set(plan.post_filter_fields) if plan else set(),
-            enrichment_fields=enrichment_fields | (set(plan.cheap_enrichment_fields + plan.deep_research_fields) if plan else set()),
+            enrichment_fields=enrichment_fields
+            | (set(plan.cheap_enrichment_fields + plan.deep_research_fields) if plan else set()),
             field_dependencies=dict(plan.field_dependencies) if plan else {},
         )
