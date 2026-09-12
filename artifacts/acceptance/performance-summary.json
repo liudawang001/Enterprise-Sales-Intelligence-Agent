@@ -1,0 +1,95 @@
+{
+  "executed_at": "2026-09-13T00:00:00+08:00",
+  "source_commit": "67f5724+working-tree",
+  "status": "PASS",
+  "environment": {
+    "hardware": "MacBook Air, Apple M5, 10 cores, 24 GB RAM",
+    "os": "macOS 26.4.1 (25E253)",
+    "python": "3.13.13",
+    "api_mode": "FastAPI TestClient / in-process",
+    "database": "in-memory repositories",
+    "providers": "deterministic fake",
+    "rag_dataset": "1 document / 1 chunk",
+    "lead_dataset": "3 API rows; separate delivery benchmark expanded to 1000 rows"
+  },
+  "baseline": {
+    "full_sales_flow_seed": {
+      "request_count": 1,
+      "latency_ms": 263.312,
+      "error_rate": 0.0
+    },
+    "rag_query": {
+      "request_count": 20,
+      "concurrency": 1,
+      "duration_seconds": 0.101,
+      "p50_ms": 4.92,
+      "p95_ms": 5.95,
+      "error_rate": 0.0,
+      "throughput_rps": 198.633
+    },
+    "task_read_api": {
+      "request_count": 100,
+      "concurrency": 1,
+      "duration_seconds": 0.103,
+      "p50_ms": 1.015,
+      "p95_ms": 1.136,
+      "error_rate": 0.0,
+      "throughput_rps": 968.695
+    },
+    "lead_list_pagination": {
+      "request_count": 100,
+      "concurrency": 1,
+      "duration_seconds": 0.11,
+      "p50_ms": 1.065,
+      "p95_ms": 1.18,
+      "error_rate": 0.0,
+      "throughput_rps": 905.277
+    },
+    "concurrent_chat": {
+      "request_count": 20,
+      "concurrency": 4,
+      "duration_seconds": 0.081,
+      "p50_ms": 16.068,
+      "p95_ms": 16.869,
+      "error_rate": 0.0,
+      "throughput_rps": 246.12
+    },
+    "excel_export_100": {
+      "request_count": 5,
+      "concurrency": 1,
+      "duration_seconds": 0.954,
+      "p50_ms": 180.838,
+      "p95_ms": 229.52,
+      "error_rate": 0.0,
+      "throughput_rps": 5.24,
+      "rows": 100,
+      "size_bytes": 93749
+    },
+    "excel_export_1000": {
+      "request_count": 3,
+      "concurrency": 1,
+      "duration_seconds": 6.068,
+      "p50_ms": 2027.408,
+      "p95_ms": 2035.466,
+      "error_rate": 0.0,
+      "throughput_rps": 0.494,
+      "rows": 1000,
+      "size_bytes": 824049
+    },
+    "expanded_1000_row_delivery_read": {
+      "request_count": 100,
+      "p95_ms": 277.832,
+      "error_rate": 0.0,
+      "dataset_rows": 1000
+    }
+  },
+  "commands": [
+    "python -m scripts.benchmark_acceptance",
+    "python -m scripts.benchmark_phase7_delivery"
+  ],
+  "limitations": [
+    "This is a repeatable local baseline, not a capacity or production SLO claim.",
+    "It does not represent production PostgreSQL, Redis, external provider latency, JWT verification, multiple API processes, or network hops.",
+    "No pass/fail capacity threshold was invented because the acceptance task defines none."
+  ]
+}
