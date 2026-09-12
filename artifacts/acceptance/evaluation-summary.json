@@ -72,7 +72,7 @@
   },
   "delivery": {
     "snapshot_case_count": 20,
-    "export_field_case_count": 20,
+    "export_field_case_count": 21,
     "evidence_case_count": 20,
     "historical_case_count": 10,
     "security_case_count": 10,
