@@ -25,6 +25,8 @@ class RedisSettings(BaseModel):
     url: str
     required: bool
     max_connections: int
+    socket_timeout_seconds: float
+    socket_connect_timeout_seconds: float
 
 
 class AuthSettings(BaseModel):
@@ -86,6 +88,8 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     redis_required: bool = False
     redis_max_connections: int = Field(default=20, ge=1)
+    redis_socket_timeout_seconds: float = Field(default=2.0, gt=0)
+    redis_socket_connect_timeout_seconds: float = Field(default=2.0, gt=0)
     cache_ttl_region_seconds: int = Field(default=604800, ge=1)
     cache_ttl_enterprise_seconds: int = Field(default=86400, ge=1)
     cache_ttl_map_seconds: int = Field(default=86400, ge=1)
@@ -227,7 +231,11 @@ class Settings(BaseSettings):
     @property
     def redis(self) -> RedisSettings:
         return RedisSettings(
-            url=self.redis_url, required=self.redis_required, max_connections=self.redis_max_connections
+            url=self.redis_url,
+            required=self.redis_required,
+            max_connections=self.redis_max_connections,
+            socket_timeout_seconds=self.redis_socket_timeout_seconds,
+            socket_connect_timeout_seconds=self.redis_socket_connect_timeout_seconds,
         )
 
     @property
