@@ -7,11 +7,14 @@ from app.main import create_app
 
 
 def _chinese_pdf() -> bytes:
-    font = "/System/Library/Fonts/Hiragino Sans GB.ttc"
     document = fitz.open()
     page = document.new_page()
-    page.insert_font(fontname="zh", fontfile=font)
-    page.insert_text((72, 72), "集团V网主要面向具有企业内部通信需求的集团客户。", fontname="zh", fontsize=12)
+    page.insert_text(
+        (72, 72),
+        "集团V网主要面向具有企业内部通信需求的集团客户。",
+        fontname="china-s",
+        fontsize=12,
+    )
     return document.tobytes()
 
 
