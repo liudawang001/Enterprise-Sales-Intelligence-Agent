@@ -4,6 +4,7 @@ from uuid import UUID
 
 from app.knowledge.enums import DocumentStatus
 from app.knowledge.models import KnowledgeChunk, KnowledgeDocument, KnowledgeFilter
+from app.observability.context import get_request_context
 
 
 class InMemoryKnowledgeRepository:
@@ -14,21 +15,29 @@ class InMemoryKnowledgeRepository:
         self.chunks: dict[UUID, KnowledgeChunk] = {}
 
     def create_document(self, document: KnowledgeDocument) -> KnowledgeDocument:
-        existing = self.find_by_hash(document.file_hash)
+        existing = self.find_by_hash(document.file_hash, workspace_id=document.workspace_id, access_scope=document.access_scope)
         if existing and existing.status == DocumentStatus.READY:
             return deepcopy(existing)
         self.documents[document.id] = deepcopy(document)
         return deepcopy(document)
 
-    def find_by_hash(self, file_hash: str) -> KnowledgeDocument | None:
-        return next((deepcopy(doc) for doc in self.documents.values() if doc.file_hash == file_hash), None)
+    def find_by_hash(self, file_hash: str, *, workspace_id: str | None = None, access_scope: str = "GLOBAL") -> KnowledgeDocument | None:
+        return next((deepcopy(doc) for doc in self.documents.values() if doc.file_hash == file_hash and doc.access_scope == access_scope and doc.workspace_id == workspace_id), None)
+
+    @staticmethod
+    def _workspace_id() -> str | None:
+        context = get_request_context()
+        return getattr(getattr(context, "principal", None), "workspace_id", None)
 
     def get_document(self, document_id: UUID) -> KnowledgeDocument | None:
         doc = self.documents.get(document_id)
+        if doc and doc.access_scope == "WORKSPACE" and doc.workspace_id != self._workspace_id():
+            return None
         return deepcopy(doc) if doc else None
 
     def list_documents(self) -> list[KnowledgeDocument]:
-        return [deepcopy(doc) for doc in self.documents.values()]
+        workspace_id = self._workspace_id()
+        return [deepcopy(doc) for doc in self.documents.values() if doc.access_scope == "GLOBAL" or doc.workspace_id == workspace_id]
 
     def update_document(self, document: KnowledgeDocument) -> KnowledgeDocument:
         self.documents[document.id] = deepcopy(document)
@@ -62,6 +71,8 @@ class InMemoryKnowledgeRepository:
 
     @staticmethod
     def _matches(doc: KnowledgeDocument, knowledge_filter: KnowledgeFilter) -> bool:
+        if doc.access_scope == "WORKSPACE" and (not knowledge_filter.workspace_id or doc.workspace_id != knowledge_filter.workspace_id):
+            return False
         if knowledge_filter.statuses and doc.status not in knowledge_filter.statuses:
             return False
         if knowledge_filter.businesses and doc.business not in knowledge_filter.businesses:

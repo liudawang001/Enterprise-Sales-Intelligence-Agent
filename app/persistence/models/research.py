@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -133,6 +133,12 @@ class ToolRunRecord(Base):
     status: Mapped[str] = mapped_column(String(24))
     latency_ms: Mapped[int] = mapped_column(Integer)
     retry_count: Mapped[int] = mapped_column(Integer)
+    trace_id: Mapped[str | None] = mapped_column(String(64))
+    run_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    fence_token: Mapped[int | None] = mapped_column(BigInteger)
+    cache_hit: Mapped[bool] = mapped_column(Boolean, default=False)
+    rate_limit_wait_ms: Mapped[int] = mapped_column(Integer, default=0)
+    provider_latency_ms: Mapped[int | None] = mapped_column(Integer)
     error_code: Mapped[str | None] = mapped_column(String(80))
     result_json: Mapped[dict | None] = mapped_column(JSONB)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

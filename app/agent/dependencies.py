@@ -5,8 +5,16 @@ from app.entities.service import EntityResolutionService
 from app.evidence.models import VerificationBudget
 from app.evidence.service import EvidenceVerificationService
 from app.evidence.targeted import TargetedVerificationService, VerificationBudgetGuard
+from app.execution.repository import InMemoryExecutionSnapshotRepository
+from app.mutation.repository import InMemoryMutationRepository
+from app.mutation.reuse import ArtifactReuseAnalyzer
+from app.mutation.service import MutationService
+from app.repositories.delivery_snapshot_repository import (
+    InMemoryDeliverySnapshotRepository,
+)
 from app.repositories.enterprise_repository import InMemoryEnterpriseRepository
 from app.repositories.evidence_repository import InMemoryEvidenceRepository
+from app.repositories.export_repository import InMemoryExportRepository
 from app.repositories.lead_score_repository import InMemoryLeadScoreRepository
 from app.repositories.mock_task_repository import MockTaskRepository
 from app.rules.service import BusinessRuleService
@@ -15,6 +23,8 @@ from app.services.business_service import MockBusinessService
 from app.services.research_service import ResearchService
 from app.services.scoring_service import LeadScoringService, MockScoringService
 from app.services.task_service import TaskService
+from app.tasks.references import TaskReferenceResolver
+from app.runtime.leases import InMemoryExecutionCoordinator
 
 
 @dataclass
@@ -33,6 +43,16 @@ class AgentDependencies:
     verification_service: EvidenceVerificationService | None = None
     lead_scoring_service: LeadScoringService | None = None
     targeted_verification_service: TargetedVerificationService | None = None
+    mutation_repository: InMemoryMutationRepository | None = None
+    execution_snapshot_repository: InMemoryExecutionSnapshotRepository | None = None
+    task_reference_resolver: TaskReferenceResolver | None = None
+    mutation_service: MutationService | None = None
+    delivery_snapshot_repository: InMemoryDeliverySnapshotRepository | None = None
+    delivery_query_service: object | None = None
+    export_repository: object | None = None
+    export_service: object | None = None
+    event_repository: object | None = None
+    execution_coordinator: object | None = None
 
 
 def build_dependencies() -> AgentDependencies:
@@ -44,6 +64,8 @@ def build_dependencies() -> AgentDependencies:
     enterprise_repository = InMemoryEnterpriseRepository(research_service.repository)
     evidence_repository = InMemoryEvidenceRepository()
     lead_score_repository = InMemoryLeadScoreRepository()
+    mutation_repository = InMemoryMutationRepository()
+    execution_snapshot_repository = InMemoryExecutionSnapshotRepository()
     for profile in demo_scoring_profiles():
         lead_score_repository.save_profile(profile)
     verification_service = EvidenceVerificationService(
@@ -82,7 +104,7 @@ def build_dependencies() -> AgentDependencies:
                 )
                 result.append(evidence)
         return result
-    return AgentDependencies(
+    deps = AgentDependencies(
         task_repository=repository,
         task_service=TaskService(repository),
         business_service=MockBusinessService(rule_service),
@@ -100,4 +122,33 @@ def build_dependencies() -> AgentDependencies:
             targeted_provider,
             VerificationBudgetGuard(verification_budget),
         ),
+        mutation_repository=mutation_repository,
+        execution_snapshot_repository=execution_snapshot_repository,
+        execution_coordinator=InMemoryExecutionCoordinator(),
+        delivery_snapshot_repository=InMemoryDeliverySnapshotRepository(),
+        task_reference_resolver=TaskReferenceResolver(repository),
     )
+    deps.mutation_service = MutationService(
+        repository,
+        mutation_repository,
+        ArtifactReuseAnalyzer(deps),
+        rule_service=rule_service,
+    )
+    from app.delivery.queries import DeliveryQueryService
+
+    deps.delivery_query_service = DeliveryQueryService(
+        deps, deps.delivery_snapshot_repository
+    )
+    from app.exports.service import ExportService
+    from app.exports.storage import LocalExportStorage, S3CompatibleExportStorage
+
+    deps.export_repository = InMemoryExportRepository()
+    storage = LocalExportStorage(settings.export_dir)
+    if settings.export_storage_backend == "s3":
+        storage = S3CompatibleExportStorage(bucket=settings.s3_bucket, endpoint_url=settings.s3_endpoint_url, region=settings.s3_region, access_key_id=settings.s3_access_key_id, secret_access_key=settings.s3_secret_access_key.get_secret_value(), signed_url_ttl_seconds=settings.export_signed_url_ttl_seconds)
+    deps.export_service = ExportService(
+        deps.delivery_query_service,
+        deps.export_repository,
+        storage,
+    )
+    return deps

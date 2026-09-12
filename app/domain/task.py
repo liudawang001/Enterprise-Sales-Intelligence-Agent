@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -25,13 +26,19 @@ class TaskPatch(BaseModel):
 class LeadTask(BaseModel):
     task_id: str
     session_id: str
+    workspace_id: str = "local"
     business: str | None = None
     region: str | None = None
     target_count: int | None = None
     constraints: list[dict[str, Any]] = Field(default_factory=list)
+    required_fields: list[str] = Field(default_factory=list)
+    export_fields: list[str] = Field(default_factory=list)
     stage: TaskStage
     status: TaskStatus
     version: int = 1
+    source_message_id: str | None = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class Lead(BaseModel):

@@ -196,6 +196,18 @@ class SearchPlanner:
             deep.append("website")
         if set(required) & {"office_count", "locations"}:
             deep.append("office_locations")
+        field_dependencies: dict[str, list[str]] = {"region": ["DISCOVERY"]}
+        for constraint in criteria.hard_constraints:
+            stages: list[str] = []
+            if any(constraint.field in value.get("provider_filters", []) for value in pushdowns.values()):
+                stages.append("DISCOVERY")
+            if constraint.field in all_post:
+                stages.append("FILTER")
+            field_dependencies[constraint.field] = stages or ["ENRICHMENT", "FILTER"]
+        for preference in criteria.ranking_preferences:
+            field_dependencies.setdefault(preference.field, []).append("RANK")
+        for field in deep:
+            field_dependencies.setdefault(field, []).append("ENRICHMENT")
         return SearchPlan(
             task_id=criteria.task_id,
             criteria_snapshot_id=criteria.criteria_id,
@@ -208,6 +220,7 @@ class SearchPlanner:
             deep_research_fields=list(dict.fromkeys(deep)),
             post_filter_fields=list(all_post),
             pushdown_explain=pushdowns,
+            field_dependencies={key: list(dict.fromkeys(value)) for key, value in field_dependencies.items()},
             budget=self.budget,
             batch_size=self.batch_size,
             max_expansion_rounds=self.max_expansion_rounds,

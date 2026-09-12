@@ -23,4 +23,5 @@ class MetadataFilterBuilder:
             document_types=query.document_types,
             statuses=[DocumentStatus.READY],
             effective_at=query.as_of_date or date.today() if query.current_only else query.as_of_date,
+            workspace_id=query.workspace_id,
         )

@@ -120,6 +120,7 @@ class SearchPlan(BaseModel):
     deep_research_fields: list[str] = Field(default_factory=list)
     post_filter_fields: list[str] = Field(default_factory=list)
     pushdown_explain: dict[str, Any] = Field(default_factory=dict)
+    field_dependencies: dict[str, list[str]] = Field(default_factory=dict)
     budget: ResearchBudget
     batch_size: int = Field(default=10, ge=1, le=20)
     max_expansion_rounds: int = Field(default=2, ge=0, le=5)
@@ -228,6 +229,7 @@ class ToolResult(BaseModel):
     latency_ms: int = 0
     retryable: bool = False
     error: ToolError | None = None
+    source_retrieved_at: datetime = Field(default_factory=_now)
 
 
 class ToolRun(BaseModel):
@@ -242,6 +244,12 @@ class ToolRun(BaseModel):
     status: ToolStatus
     latency_ms: int = 0
     retry_count: int = 0
+    trace_id: str | None = None
+    run_id: str | None = None
+    fence_token: int | None = None
+    cache_hit: bool = False
+    rate_limit_wait_ms: int = 0
+    provider_latency_ms: int | None = None
     error_code: str | None = None
     result: ToolResult | None = None
     started_at: datetime = Field(default_factory=_now)

@@ -127,6 +127,10 @@ class ResearchService:
         self.region_resolver = RegionResolver()
         self._runtimes: dict[str, BoundedProviderRuntime] = {}
         self._legacy_sets: dict[str, list[Lead]] = {}
+        self._runtime_infrastructure: dict = {}
+
+    def configure_runtime_infrastructure(self, *, cache=None, rate_limiter=None, circuit_breaker=None) -> None:
+        self._runtime_infrastructure = {"distributed_cache": cache, "rate_limiter": rate_limiter, "circuit_breaker": circuit_breaker}
 
     def _budget(self) -> ResearchBudget:
         return ResearchBudget(
@@ -182,6 +186,7 @@ class ResearchService:
             BudgetGuard(plan.budget),
             max_retries=self.settings.research_max_retries,
             concurrency=limits,
+            **self._runtime_infrastructure,
         )
         return run, plan
 
@@ -297,6 +302,7 @@ class ResearchService:
                         source_url=item.source_url,
                         payload_json=payload,
                         http_status=200,
+                        retrieved_at=result.source_retrieved_at,
                     )
                 )
                 candidate_ids.append(item.candidate_id)
@@ -440,6 +446,7 @@ class ResearchService:
                             source_id=item.source_entity_id,
                             payload_json=result.data,
                             http_status=200,
+                            retrieved_at=result.source_retrieved_at,
                         )
                     )
             if item.office_count is None:
@@ -478,6 +485,7 @@ class ResearchService:
                                 source_id=place.get("id"),
                                 payload_json=place,
                                 http_status=200,
+                                retrieved_at=result.source_retrieved_at,
                             )
                         )
         return self.repository.save_batch_result(
@@ -589,6 +597,7 @@ class ResearchService:
                                 "score": row.get("score"),
                             },
                             http_status=200,
+                            retrieved_at=result.source_retrieved_at,
                         )
                     )
             if not website:
@@ -647,6 +656,7 @@ class ResearchService:
                                     internal_text.encode()
                                 ).hexdigest(),
                                 http_status=200,
+                                retrieved_at=internal_result.source_retrieved_at,
                             )
                         )
                 facts = WebFactExtractor.extract(
@@ -669,6 +679,7 @@ class ResearchService:
                         content_text=text,
                         content_hash=hashlib.sha256(text.encode()).hexdigest(),
                         http_status=200,
+                        retrieved_at=result.source_retrieved_at,
                     )
                 )
             else:
@@ -807,6 +818,7 @@ class ResearchService:
                                 if key in fields
                             },
                             http_status=200,
+                            retrieved_at=result.source_retrieved_at,
                         )
                     )
                 )
@@ -838,6 +850,7 @@ class ResearchService:
                                 source_id=row.get("id"),
                                 payload_json=row,
                                 http_status=200,
+                                retrieved_at=result.source_retrieved_at,
                             )
                         )
                     )
@@ -871,6 +884,7 @@ class ResearchService:
                             source_url=str(choice.url),
                             payload_json={"website": str(choice.url)},
                             http_status=200,
+                            retrieved_at=result.source_retrieved_at,
                         )
                     )
                 )
@@ -899,6 +913,7 @@ class ResearchService:
                             content_text=text,
                             content_hash=hashlib.sha256(text.encode()).hexdigest(),
                             http_status=200,
+                            retrieved_at=result.source_retrieved_at,
                         )
                     )
                 )

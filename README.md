@@ -2,15 +2,98 @@
 
 **Enterprise Sales Intelligence Agent（政企营销智能体）** 是一套面向政企营销场景的状态化智能 Agent。系统通过 RAG 获取产品、套餐和营销活动知识，结合多轮对话形成结构化营销任务，并编排企业信息、地图、Web Search 与企业官网等多源工具，实现企业潜客发现、情报补全、实体归一化、证据核验、潜客评分及 Excel 交付。
 
-## Phase 1 / Phase 2 / Phase 3 / Phase 4 / Phase 5 范围
+## Phase 1 / Phase 2 / Phase 3 / Phase 4 / Phase 5 / Phase 6 / Phase 7 / Phase 8 范围
 
 Phase 1 实现 LangGraph Agent Runtime 与离线 Mock Workflow：多 Intent 入口、结构化 `LeadTask`、Required Slot 校验、真实 `interrupt()` / `Command(resume=...)`、MemorySaver、Mock Business Planning、Mock Research、Mock Lead Scoring、Mutation Skeleton 和 FastAPI `/api/chat`。
 
-Phase 2 将 BusinessQA 升级为真实可追溯的 RAG Knowledge Engine：PDF 上传与按页解析、结构优先 Chunking、SHA-256 幂等、Embedding 抽象、Dense + 中文 Sparse 检索、Metadata/有效期/区域过滤、RRF、Reranker、No-Evidence Gate、页级 Citation 和离线 Evaluation。默认 Demo 使用内存 Repository 与确定性 FakeEmbedding；配置 PostgreSQL/pgvector 后可执行 Alembic migration 和 PGVectorStore 适配。
+Phase 2 将 BusinessQA 升级为真实可追溯的 RAG Knowledge Engine：PDF 上传与按页解析、结构优先 Chunking、SHA-256 幂等、Embedding 抽象、Dense + 中文 Sparse 检索、Metadata/有效期/区域过滤、RRF、Reranker、No-Evidence Gate、页级 Citation 和离线 Evaluation。默认 Demo 使用内存 Repository 与确定性 FakeEmbedding；配置 PostgreSQL/pgvector 后可执行 Alembic migration 和 PGVectorStore 适配。启用本地 BGE embedding/reranker 时安装 `local-embedding` extra，默认 API 镜像不携带 Torch/CUDA 模型栈。
 
 Phase 3 将业务知识编译为带来源、版本和冲突处理的 `LeadCriteria`。Phase 4 将该 Criteria 编译为有界 `SearchPlan`，通过企业数据、地图、Web Search 和 Web Fetch Provider 执行候选发现、低成本补全、Hard Filter 与有限深研。默认配置使用 Fake Provider，完整走相同 Provider/预算/来源链路且不消耗外部 credits；配置合法凭据后切换到真实适配器。
 
 Phase 5 将多源 Candidate 转换为 `CanonicalEnterprise`，对每个业务字段独立建立 Evidence、归一化、冲突检测和主值选择，生成 Task-aware `VerifiedEnterpriseProfile`。最终排序由版本化的确定性 Scoring Profile 计算，LLM 仅能解释既有分数和合法 Evidence ID。
+
+Phase 6 将对话升级为多 Task、不可变 Task Version 和依赖感知的局部重执行系统。自然语言修改先经过 `TaskReferenceResolver`、`MutationPreview`、`TaskDiff / CriteriaDiff` 与 `ArtifactReuseContext`，再由确定性 `TaskMutationPlanner` 选择最小安全 Scope。旧执行可以完成并保留历史，但版本栅栏禁止它覆盖新版本的 current head。
+
+Phase 7 将某个明确 Task Version 的 Verified Lead、Lead Score 与字段级 Evidence 冻结为不可变 `DeliverySnapshot`。React Workspace 和 Excel Export 只消费同一个 Delivery Read Model，因此排名、评分、核验状态、公开联系方式与 Evidence lineage 不会在 UI 和工作簿之间产生两套口径。导出固定 Snapshot，后续 Task Mutation 不会改变已生成 Artifact。
+
+Phase 8 完成生产工程化收口：生产 Graph 使用 PostgreSQL `AsyncPostgresSaver` 并在应用生命周期编译一次；Execution Lease/Fence 与 Task Version Fence 联合阻止重复或过期执行 Promote；Redis 提供可丢失缓存、原子 Token Bucket 和跨 Worker Stream，PostgreSQL 保留持久事件；Langfuse v4/OpenTelemetry、JSON 日志、脱敏、低基数指标与三层健康检查形成 `trace_id` 排障链路。JWT/OIDC、角色门禁、工作区过滤、受权下载、生产镜像、Nginx、迁移、备份恢复、CI、Fault 与 Load Test 提供可重复的生产治理。
+
+生产部署顺序固定为 `alembic upgrade head`、`python -m scripts.init_checkpointer`、启动 API。详见 [deployment](docs/deployment.md) 和 [runbook](docs/runbook.md)。默认 Demo 仍是本地内存业务 Repository 与 Fake Provider；“production-like”不表示已接入真实运营商私有数据、企业 IAM、Kubernetes 或多地域高可用。
+
+## Phase 7 Delivery Workspace
+
+```text
+Task Version + Execution Snapshot
+        |
+        v
+DeliverySnapshot -> DeliveryLeadRow / TaskSummaryDTO / LeadDetailDTO
+        |                                      |
+        v                                      v
+React Workspace                         ExportSpec / ExportJob
+                                               |
+                                               v
+                                      OpenPyXL -> XLSX Artifact
+```
+
+Workspace 提供 Task List、Conversation、Version Selector、SSE Progress、服务端分页/排序/筛选的 Lead Table、Lead Detail Drawer、字段核验、Evidence/Conflict、Score Breakdown、Export Panel、Export History 和下载。桌面端为三栏工作台，小屏为任务/对话/潜客三个 Tab。
+
+历史版本通过 `/tasks/{task_id}?version={version}` 表达。历史视图显示 `Historical Version · 只读查看`，禁止从旧版本直接发起 Mutation；导出仍绑定所查看的旧 Snapshot，而不是自动跳到 current head。
+
+Phase 7 Delivery API：
+
+```text
+GET  /api/tasks
+GET  /api/tasks/{task_id}
+GET  /api/tasks/{task_id}/versions
+GET  /api/tasks/{task_id}/versions/{version}
+GET  /api/tasks/{task_id}/versions/{version}/leads
+GET  /api/tasks/{task_id}/versions/{version}/leads/{enterprise_id}
+GET  /api/tasks/{task_id}/versions/{version}/leads/{enterprise_id}/score
+GET  /api/enterprises/{enterprise_id}/evidence?task_id=...&version=...
+GET  /api/tasks/{task_id}/events
+GET  /api/tasks/{task_id}/events/stream
+GET  /api/exports/fields
+POST /api/exports
+GET  /api/exports/{export_id}
+GET  /api/exports/{export_id}/events
+GET  /api/exports/{export_id}/download
+GET  /api/tasks/{task_id}/exports
+```
+
+XLSX 可包含五个真实 Sheet：
+
+| Sheet | 内容 |
+|---|---|
+| `潜客清单` | 用户选择的受控字段、排名、评分与核验状态 |
+| `评分说明` | 已持久化的评分组件与 Scoring Profile Version |
+| `证据摘要` | 字段主值、状态、置信度、来源、URL 与 Evidence 计数 |
+| `任务信息` | Task Version、Criteria、Lead/Score Set、Snapshot 与 Export ID |
+| `冲突明细` | 主值、备选值及对应来源，按导出选项生成 |
+
+导出字段来自 `ExportFieldRegistry` allowlist；未知或敏感字段会被拒绝。任一已选择事实字段存在缺失时返回 `EXPORT_FIELD_DATA_INCOMPLETE`，ExportService 不会偷偷发起 Search 或补全。工作簿会防御公式注入，只将 HTTP/HTTPS 设为 Hyperlink，并清理文件名路径穿越字符。下载只读取已有 Artifact，并返回 SHA-256。
+
+### 启动与 Demo
+
+后端：
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e '.[dev]'
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+前端：
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+打开 `http://127.0.0.1:5173/workspace`，在对话区输入“帮我找上海松江 3 家集团 V 网潜客”。任务完成后在潜客表点击企业名称查看字段状态、Evidence、冲突与 Score Breakdown；点击“导出”选择 Top N、字段和附加 Sheet，生成后可从面板或 Export History 下载。
+
+默认 Demo 使用确定性 Fake Provider 和内存 Repository，不访问外部付费服务。页面展示的企业、电话、评分和证据均为合成演示数据，不代表真实企业情报或中国移动正式营销标准。
 
 ## 当前架构
 
@@ -24,12 +107,78 @@ MainGraph: load_context -> classify_intent -> Intent Router
                      |
              interrupt / resume
                      |
-       BusinessPlanning -> Research -> Verification -> Score -> Response
+       BusinessPlanning -> Research -> Verification -> Score -> Promotion Guard
 ```
 
 `RequirementGraph` 收集 `business`、`region`、`target_count`。缺失时调用 LangGraph `interrupt()`，同一 `session_id` 同时作为 `thread_id`，后续请求通过 `Command(resume={"text": ...})` 恢复，不创建第二个任务。`task_id` 由 Repository 单独生成 UUID。
 
 ResearchGraph 不再内置固定企业；所有 Candidate 必须来自 Provider 返回并绑定 `SourceRecord`。Graph State 只保留 run/plan/set/batch 引用和计数，Candidate、Source、ToolRun 与集合 lineage 留在 Repository 边界。Phase 5 主链使用正式的确定性 `LeadScoringService`；`MockScoringService` 仅为前序阶段兼容保留。
+
+## Phase 6 Conversation Task Control
+
+同一 `thread_id` 可以拥有多个 `task_id`，每个 Task 的修改形成递增且不可覆盖的 `task_version`。任务可通过显式 ID、唯一业务名称或 Active Task 解析；多个候选无法消歧时触发 `TASK_SELECTION_REQUIRED`，并用原 `thread_id` 的 `Command(resume=...)` 继续。
+
+MutationGraph 的执行顺序为：
+
+```text
+resolve_target_task -> load_current_task -> parse/validate_mutation
+-> MutationPreview -> TaskDiff -> CriteriaDiff -> ArtifactReuseContext
+-> classify_invalidation -> ReexecutionPlan -> persist new Task Version
+```
+
+七个路由值及最小执行边界：
+
+| Scope | 执行范围 |
+|---|---|
+| `NONE` | 记录 no-op，不创建 Task Version 或新快照 |
+| `DISPLAY_ONLY` | 复用 Score Set，仅 Projection / Top N |
+| `RANK_ONLY` | 复用 Verified Profile，重新确定性评分 |
+| `FILTER_ONLY` | 复用 Raw/Researched Candidate Set，重新过滤及必要核验 |
+| `ENRICHMENT_REQUIRED` | 复用企业集合，仅定向补字段与重新核验 |
+| `DISCOVERY_REQUIRED` | 复用仍有效的 Business Planning，重新 Research |
+| `FULL_REPLAN` | 业务语义变化时从 Business Planning 完整重算 |
+
+Scope 由 `TaskDiff + CriteriaDiff + ArtifactReuseContext + SearchPlan.field_dependencies` 共同决定。例如删除仅在 post-filter 使用的员工规模条件可走 `FILTER_ONLY`；删除已下推到 Discovery 的行业条件必须走 `DISCOVERY_REQUIRED`。运行时若复用假设不成立，只允许记录原因后安全升级 Scope。
+
+每个新结果 head 保存 `TaskExecutionSnapshot`，串联 Criteria、SearchPlan、Raw/Filtered/Researched Candidate、Verified 与 Score Artifact。`ArtifactValidity` 区分 `CURRENT / REUSABLE / SUPERSEDED / INVALIDATED`。Promotion 前检查当前 Task Version；旧版本晚完成时保存为 `SUPERSEDED`，不会成为 current head。Discovery、Enrichment、Deep Research 与 Targeted Verification 的批次边界还会执行 cooperative superseded check。
+
+Phase 6 API：
+
+```text
+GET  /api/tasks
+GET  /api/tasks/{task_id}
+GET  /api/tasks/{task_id}/versions
+GET  /api/tasks/{task_id}/versions/{version}
+POST /api/tasks/{task_id}/activate
+POST /api/tasks/{task_id}/mutations
+GET  /api/tasks/{task_id}/mutations/{mutation_id}
+GET  /api/reexecution/{plan_id}
+```
+
+Lead Query 和 Export Request 都先解析 Task Reference，因此可以读取非 Active Task；Phase 6 Export 只解析 `task_id / task_version / lead_set_id`，不生成 Excel。
+
+Phase 6 固定评测：
+
+```bash
+python -m evals.mutation.run_mutation_eval
+```
+
+当前固定数据包含 60 个 Mutation Scope case、20 个 Artifact Reuse case 和 20 个 Version/Stale case。CI Gate 包括 Scope Accuracy、Unsafe Under-reexecution Rate、Unnecessary Full Replan Rate、Artifact Reuse Correctness、Version Fence Correctness 与 Mutation Idempotency；这些是确定性合成工程指标，不代表生产流量效果。
+
+Phase 7 固定评测：
+
+```bash
+python -m evals.delivery.run_delivery_eval
+python -m scripts.benchmark_phase7_delivery
+```
+
+固定数据包含 20 个 Snapshot Consistency、20 个 Export Field、20 个 Evidence Display、10 个 Historical Version 与 10 个 Security case。Gate 覆盖 Snapshot Version Accuracy、UI/Excel Critical Field Consistency、Export Field Accuracy/Allowlist、Evidence Traceability、Export Idempotency、Workbook Parse、Unsafe Hyperlink、Formula Injection、Filename Traversal 与 Historical Version Accuracy。
+
+2026-09-11 本地内存测试环境实测：1000 条 Delivery Projection、100 次 Lead List 查询的 P95 为 `277.237 ms`；完整五 Sheet XLSX 的 100 行生成耗时 `183.370 ms`、大小 `93,203 bytes`，1000 行生成耗时 `2,065.972 ms`、大小 `820,035 bytes`（证据摘要 13,000 行）。本地 Vite 开发服务器的 Chrome 首屏采样为 TTFB `3 ms`、FCP `68 ms`、LCP `68 ms`、CLS `0.08`。这些是单次本地合成数据测量，不是生产 SLA。
+
+### Phase 7 边界
+
+Phase 7 的交付层不负责运行时治理；这些能力已在 Phase 8 的生产工程层补齐。当前仍需按部署环境另行建设 Kubernetes、多地域高可用、完整企业 IAM、运营商私有数据合规接入和真实外部 Provider smoke。
 
 ## Phase 5 Verification Architecture
 
@@ -191,22 +340,20 @@ python -m evals.phase5.run_evidence_scoring_eval
 
 当前 54 个实体 Pair 的 Precision / Recall / F1 / SAME_ENTITY Precision 均为 `1.000`，不同信用代码 Hard Negative Accuracy 为 `1.000`。30 个 Evidence case 的 Conflict Detection、Primary Value Selection、Source Traceability 均为 `1.000`；30 个 Scoring case 的 Determinism、Monotonicity、Profile Reproducibility 与硬必需字段缺失 `NOT_SCORABLE` 正确率均为 `1.000`。这些是固定合成 Demo 数据集指标，不代表生产数据表现。
 
-## 安装与启动
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -e '.[dev]'
-uvicorn app.main:app --reload
-```
-
 ## 测试
 
 ```bash
 pytest
+pytest -m integration
+cd frontend && npm test
+cd frontend && npm run build
 ```
 
 所有测试离线运行，不需要 OpenAI、高德或企业信息 API Key。
+
+## 当前阶段边界
+
+Phase 6 尚不包含正式 Excel 导出、React 营销工作台、生产级 `AsyncPostgresSaver`、Redis 分布式锁/取消、Langfuse 全量生产观测、多租户 RBAC 或 CRM 写回。这些仍属于 Phase 7 / Phase 8。
 
 默认 `pytest` 排除 external marker。仅在 `.env.example` 中五项真实 Provider 配置均已合法设置后，显式运行（会消耗第三方额度）：
 
@@ -262,12 +409,12 @@ python -m evals.rules.run_rule_eval
 
 当前自建数据集包含 30 条 Rule Extraction、20 条 Conflict 和 20 条 Criteria Case；实际结果为 Rule Exact Match `1.000`、Evidence Binding `1.000`、Conflict Accuracy `1.000`、Criteria Validity `1.000`。这是确定性 Demo 数据集结果，不代表真实 LLM 或生产数据表现。
 
-## 已完成与未实现
+## 已完成与边界
 
-已完成：Phase 1 Runtime、MainGraph、Intent/Mutation Router、任务版本、MemorySaver、FastAPI；Phase 2 PDF Ingestion、Chunking、Embedding 抽象、Dense/Sparse/Hybrid Retrieval、RRF、Reranker、Citation、No-Evidence Gate、Evaluation 和回归测试。
+已完成：Phase 1 Runtime、MainGraph、Intent/Mutation Router、任务版本、MemorySaver（开发模式）、FastAPI；Phase 2 PDF Ingestion、Chunking、Embedding 抽象、Dense/Sparse/Hybrid Retrieval、RRF、Reranker、Citation、No-Evidence Gate、Evaluation 和回归测试。
 
 Phase 4 已实现可配置的真实企业 API、高德、Tavily 和 Firecrawl adapters，以及有界多源研究工作流。本次环境未配置任何第三方 Key，因此真实 external smoke 未执行，不能声明真实 Provider E2E 已成功。
 
 Phase 5 已实现 Entity Resolution、字段级 Evidence Verification/Conflict Resolution、Targeted Verification、Verified Profile/Coverage、版本化确定性 Lead Score、Grounded Explain、API、PostgreSQL schema/adapters 和固定评测。
 
-尚未实现的 Phase 6～8 能力：对话任务控制的完整局部失效重算、正式 Excel/UI 交付、CRM 写回、生产级 PostgreSQL TaskRepository/AsyncPostgresSaver、Redis 分布式限流、多租户权限、Langfuse 生产观测、BI Dashboard、机器学习评分模型与 GraphRAG。
+Phase 6～8 已完成对话任务控制、局部重执行、Excel/UI 交付、PostgreSQL `AsyncPostgresSaver`、Execution Lease/Fence、Redis 分布式限流与事件、Langfuse v4 fail-open 观测、JWT/OIDC 工作区隔离、生产容器、备份恢复、CI、故障测试和负载脚本。CRM 写回、BI Dashboard、机器学习评分模型与 GraphRAG 不在本项目范围内。

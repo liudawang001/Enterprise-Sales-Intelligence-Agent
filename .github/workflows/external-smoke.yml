@@ -1,0 +1,28 @@
+name: External Provider Smoke
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 2 * * 1"
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    environment: external-smoke
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e '.[dev]'
+      - run: pytest -m external --junitxml=external-smoke.xml
+        env:
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          AMAP_API_KEY: ${{ secrets.AMAP_API_KEY }}
+          ENTERPRISE_API_KEY: ${{ secrets.ENTERPRISE_API_KEY }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: external-smoke-results
+          path: external-smoke.xml

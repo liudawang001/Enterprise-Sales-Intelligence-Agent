@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from uuid import uuid4
 
 from app.agent.dependencies import AgentDependencies
 from app.agent.state import AgentState
@@ -12,6 +13,21 @@ def _criteria(state: AgentState, deps: AgentDependencies):
     return (
         deps.rule_service.repository.criteria.get(criteria_id) if criteria_id else None
     )
+
+
+def _execution_is_current(deps: AgentDependencies, run_id: str) -> bool:
+    run = deps.research_service.repository.runs.get(run_id)
+    if not run:
+        return False
+    criteria = deps.rule_service.repository.criteria.get(run.criteria_snapshot_id)
+    task = deps.task_repository.get_task(run.task_id)
+    return bool(criteria and task and criteria.task_version == task.version)
+
+
+def _superseded_batch(deps: AgentDependencies, run_id: str, stage: str) -> str:
+    ref = deps.research_service.repository.save_batch_result(str(uuid4()), [], research_run_id=run_id, stage=stage)
+    deps.research_service.repository.record_event(run_id, "STALE_EXECUTION", stage=stage)
+    return ref
 
 
 def make_load_criteria(deps: AgentDependencies):
@@ -87,6 +103,8 @@ def dispatch_discovery(state: AgentState) -> dict:
 
 def make_run_discovery_batch(deps: AgentDependencies):
     def node(state: AgentState) -> dict:
+        if not _execution_is_current(deps, state["research_run_id"]):
+            return {"discovery_result_refs": [_superseded_batch(deps, state["research_run_id"], "DISCOVERY")]}
         ref = asyncio.run(
             deps.research_service.run_discovery_batch(
                 state["research_run_id"], state.get("discovery_batch", [])
@@ -186,6 +204,8 @@ def dispatch_cheap_enrichment(state: AgentState) -> dict:
 
 def make_run_enrichment_batch(deps: AgentDependencies):
     def node(state: AgentState) -> dict:
+        if not _execution_is_current(deps, state["research_run_id"]):
+            return {"enrichment_result_refs": [_superseded_batch(deps, state["research_run_id"], "ENRICHMENT")]}
         ref = asyncio.run(
             deps.research_service.enrich_batch(
                 state["research_run_id"], state.get("enrichment_batch", [])
@@ -280,6 +300,8 @@ def dispatch_deep_research(state: AgentState) -> dict:
 
 def make_run_deep_research_batch(deps: AgentDependencies):
     def node(state: AgentState) -> dict:
+        if not _execution_is_current(deps, state["research_run_id"]):
+            return {"deep_research_result_refs": [_superseded_batch(deps, state["research_run_id"], "DEEP_RESEARCH")]}
         ref = asyncio.run(
             deps.research_service.deep_research_batch(
                 state["research_run_id"], state.get("deep_research_batch", [])

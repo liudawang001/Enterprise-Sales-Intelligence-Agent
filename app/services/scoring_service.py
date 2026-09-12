@@ -33,7 +33,7 @@ class LeadScoringService:
         self.engine = DeterministicScoringEngine()
         self.explainer = GroundedScoreExplainer()
 
-    def score_task(self, *, task_id: str, criteria_id: str, profile_ids: list[str], target_count: int) -> tuple[object, list[dict]]:
+    def score_task(self, *, task_id: str, criteria_id: str, profile_ids: list[str], target_count: int, task_version: int = 1) -> tuple[object, list[dict]]:
         criteria = self.rule_repository.criteria.get(criteria_id)
         if not criteria:
             raise ValueError("CRITERIA_NOT_FOUND")
@@ -46,8 +46,10 @@ class LeadScoringService:
             profile = self.evidence_repository.profiles.get(profile_id)
             if not profile:
                 continue
-            score = self.repository.save_score(self.engine.score(task_id=task_id, profile=profile, criteria=criteria, scoring_profile=scoring_profile))
-            reason = self.repository.save_reason(self.explainer.explain(score))
+            score = self.repository.save_score(self.engine.score(task_id=task_id, profile=profile, criteria=criteria, scoring_profile=scoring_profile).model_copy(update={"task_version": task_version}))
+            reason = self.repository.save_reason(
+                self.explainer.explain(score), lead_score_id=score.lead_score_id
+            )
             enterprise = self.enterprise_repository.get_enterprise(profile.enterprise_id)
             scores.append(score)
             rows.append({
@@ -61,7 +63,7 @@ class LeadScoringService:
                 "recommendation_reason": reason.summary,
                 "evidence_ids": reason.evidence_ids,
             })
-        lead_set = self.repository.save_lead_set(self.engine.build_lead_set(task_id=task_id, criteria_snapshot_id=criteria_id, scoring_profile_id=scoring_profile.profile_id, scores=scores, top_n=target_count))
+        lead_set = self.repository.save_lead_set(self.engine.build_lead_set(task_id=task_id, criteria_snapshot_id=criteria_id, scoring_profile_id=scoring_profile.profile_id, scores=scores, top_n=target_count).model_copy(update={"task_version": task_version}))
         order = {enterprise_id: index for index, enterprise_id in enumerate(lead_set.lead_ids)}
         rows = [item for item in rows if item["enterprise_id"] in order]
         rows.sort(key=lambda item: (order.get(item["enterprise_id"], 10**9), -(item["score"] or 0)))

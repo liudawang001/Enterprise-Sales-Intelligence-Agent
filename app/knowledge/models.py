@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field
@@ -15,6 +15,8 @@ class KnowledgeDocument(BaseModel):
     business: str | None = None
     document_type: str | None = None
     region: str = "NATIONAL"
+    access_scope: Literal["GLOBAL", "WORKSPACE"] = "GLOBAL"
+    workspace_id: str | None = None
     authority: DocumentAuthority = DocumentAuthority.DEMO
     version: str | None = None
     effective_from: date | None = None
@@ -50,6 +52,7 @@ class KnowledgeFilter(BaseModel):
     authorities: list[DocumentAuthority] = Field(default_factory=list)
     statuses: list[DocumentStatus] = Field(default_factory=lambda: [DocumentStatus.READY])
     effective_at: date | None = None
+    workspace_id: str | None = None
 
 
 class KnowledgeQuery(BaseModel):
@@ -60,6 +63,7 @@ class KnowledgeQuery(BaseModel):
     as_of_date: date | None = None
     document_types: list[str] = Field(default_factory=list)
     current_only: bool = True
+    workspace_id: str | None = None
 
 
 class ParsedPage(BaseModel):
