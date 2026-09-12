@@ -43,6 +43,47 @@ def test_cross_workspace_export_is_not_disclosed() -> None:
     assert response.json()["detail"] == "EXPORT_NOT_FOUND"
 
 
+def test_cross_workspace_intelligence_routes_are_not_disclosed() -> None:
+    app = create_app()
+    token = set_request_context(
+        RequestContext(
+            request_id="r-intelligence",
+            trace_id="t-intelligence",
+            principal=Principal(user_id="other", workspace_id="workspace-b", roles={Role.ANALYST}),
+        )
+    )
+    try:
+        hidden = app.state.dependencies.task_repository.create_task("private-intelligence-thread", "message")
+    finally:
+        reset_request_context(token)
+
+    client = TestClient(app)
+    routes = [
+        f"/api/tasks/{hidden.task_id}/criteria",
+        f"/api/tasks/{hidden.task_id}/scores",
+        f"/api/enterprises/private-enterprise?task_id={hidden.task_id}",
+        f"/api/enterprises/private-enterprise/relations?task_id={hidden.task_id}",
+        f"/api/enterprises/private-enterprise/evidence?task_id={hidden.task_id}",
+        f"/api/enterprises/private-enterprise/fields/legal_name/evidence?task_id={hidden.task_id}",
+        f"/api/leads/private-enterprise/score?task_id={hidden.task_id}",
+        f"/api/leads/private-enterprise/score/explain?task_id={hidden.task_id}",
+    ]
+
+    for route in routes:
+        response = client.get(route)
+        assert response.status_code == 404
+        assert response.json()["detail"] == "TASK_NOT_FOUND"
+
+
+def test_unscoped_intelligence_routes_are_rejected() -> None:
+    client = TestClient(create_app())
+    assert client.get("/api/enterprises/unknown").status_code == 422
+    assert client.get("/api/leads/unknown/score").status_code == 422
+    response = client.get("/api/enterprises/unknown/evidence")
+    assert response.status_code == 400
+    assert response.json()["detail"] == "TASK_CONTEXT_REQUIRED"
+
+
 def test_health_and_security_headers_are_available() -> None:
     response = TestClient(create_app()).get("/health/live")
     assert response.status_code == 200

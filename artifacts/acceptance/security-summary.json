@@ -1,0 +1,61 @@
+{
+  "executed_at": "2026-09-12T23:55:00+08:00",
+  "source_commit": "0b7db4c+working-tree",
+  "status": "PASS",
+  "checks": [
+    {
+      "name": "security regression selection",
+      "status": "PASS",
+      "evidence": "28 tests passed: JWT/RBAC, workspace isolation, SSRF, prompt-injection-as-data, Excel injection/hyperlink protection, production settings, and redaction"
+    },
+    {
+      "name": "workspace task isolation",
+      "status": "PASS",
+      "evidence": "Task, criteria, score, enterprise, relation, evidence, export, and knowledge routes reject cross-workspace access; enterprise-level intelligence routes now require an authorized task or snapshot context"
+    },
+    {
+      "name": "JWT and RBAC boundary",
+      "status": "PASS",
+      "evidence": "Missing/invalid token returns 401; viewer writes and analyst document administration return 403; authorized requests reach validation/routing"
+    },
+    {
+      "name": "SSRF controls",
+      "status": "PASS",
+      "evidence": "Private, loopback, link-local and unsupported fetch targets are rejected by provider runtime tests"
+    },
+    {
+      "name": "prompt injection isolation",
+      "status": "PASS",
+      "evidence": "Retrieved page instructions remain untrusted data while public contact extraction continues"
+    },
+    {
+      "name": "Excel injection and unsafe hyperlinks",
+      "status": "PASS",
+      "evidence": "Formula-leading cells are emitted as text and unsafe URL schemes are not linked"
+    },
+    {
+      "name": "secret redaction",
+      "status": "PASS",
+      "evidence": "Runtime redaction tests remove API keys, tokens and database passwords from structured logs"
+    },
+    {
+      "name": "Git history secret scan",
+      "status": "PASS",
+      "evidence": "Gitleaks 8.30.1 scanned 57 commits / approximately 1.31 MB with --redact and found no leaks"
+    },
+    {
+      "name": "Python dependency vulnerability scan",
+      "status": "PASS",
+      "evidence": "pip-audit project scan: No known vulnerabilities found"
+    },
+    {
+      "name": "frontend production dependency vulnerability scan",
+      "status": "PASS",
+      "evidence": "npm audit --omit=dev: found 0 vulnerabilities"
+    }
+  ],
+  "notes": [
+    "The first attempt to use a third-party Gitleaks container was rejected because mounting the repository into an unverified image could disclose source and Git history. A locally installed scanner was used instead.",
+    "This result covers repository code and deterministic tests; no external identity provider or production JWKS endpoint was available for a live authentication smoke test."
+  ]
+}

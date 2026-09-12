@@ -4,6 +4,8 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 
+from app.security.workspace import scoped_task
+
 router = APIRouter(prefix="/api")
 
 
@@ -12,7 +14,16 @@ def _explain(criteria, repository=None) -> dict[str, Any]:
     sources = []
     for rid, rule in source_rules.items():
         if rule:
-            sources.append({"rule_id": rid, "source_type": rule.source_type.value, "rationale": rule.rationale, "evidence_refs": rule.evidence_refs, "provenance": [p.model_dump(mode="json") for p in rule.provenance], "source_message_id": rule.source_message_id})
+            sources.append(
+                {
+                    "rule_id": rid,
+                    "source_type": rule.source_type.value,
+                    "rationale": rule.rationale,
+                    "evidence_refs": rule.evidence_refs,
+                    "provenance": [p.model_dump(mode="json") for p in rule.provenance],
+                    "source_message_id": rule.source_message_id,
+                }
+            )
     return {
         "criteria_id": criteria.criteria_id,
         "criteria_hash": criteria.criteria_hash,
@@ -30,10 +41,15 @@ def _explain(criteria, repository=None) -> dict[str, Any]:
 
 @router.get("/tasks/{task_id}/criteria")
 async def get_task_criteria(task_id: str, request: Request) -> dict[str, Any]:
-    criteria = [c for c in request.app.state.dependencies.rule_service.repository.criteria.values() if c.task_id == task_id]
+    scoped_task(request, task_id)
+    criteria = [
+        c for c in request.app.state.dependencies.rule_service.repository.criteria.values() if c.task_id == task_id
+    ]
     if not criteria:
         raise HTTPException(status_code=404, detail="criteria not found")
-    return _explain(max(criteria, key=lambda item: item.task_version), request.app.state.dependencies.rule_service.repository)
+    return _explain(
+        max(criteria, key=lambda item: item.task_version), request.app.state.dependencies.rule_service.repository
+    )
 
 
 @router.get("/criteria/{criteria_id}/explain")
@@ -41,4 +57,5 @@ async def explain_criteria(criteria_id: str, request: Request) -> dict[str, Any]
     criteria = request.app.state.dependencies.rule_service.repository.criteria.get(criteria_id)
     if not criteria:
         raise HTTPException(status_code=404, detail="criteria not found")
+    scoped_task(request, criteria.task_id)
     return _explain(criteria, request.app.state.dependencies.rule_service.repository)

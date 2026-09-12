@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Query, Request
+
 from app.security.workspace import scoped_task
 
 router = APIRouter(prefix="/api")
@@ -25,6 +26,8 @@ async def get_enterprise_evidence(
     snapshot_id: str | None = Query(default=None),
 ) -> dict:
     deps = request.app.state.dependencies
+    if not task_id and not snapshot_id:
+        raise HTTPException(400, "TASK_CONTEXT_REQUIRED")
     if task_id:
         scoped_task(request, task_id)
     if not deps.enterprise_repository.get_enterprise(enterprise_id):
@@ -38,6 +41,9 @@ async def get_enterprise_evidence(
             )
         except ValueError as exc:
             raise HTTPException(404, str(exc)) from exc
+        scoped_task(request, bundle.snapshot.task_id)
+        if task_id and bundle.snapshot.task_id != task_id:
+            raise HTTPException(404, "SNAPSHOT_NOT_FOUND")
         detail = bundle.details.get(enterprise_id)
         if not detail:
             raise HTTPException(404, "LEAD_NOT_FOUND_IN_TASK_VERSION")
@@ -56,18 +62,24 @@ async def get_enterprise_evidence(
             "items": [item.model_dump(mode="json") for item in values],
             "count": len(values),
         }
-    values = deps.evidence_repository.list_evidence(enterprise_id, field_name)
-    values = [
-        item
-        for item in values
-        if not source_type or item.source_type.value == source_type
-    ]
-    return {"items": [item.model_dump(mode="json") for item in values], "count": len(values)}
+    raise HTTPException(400, "TASK_CONTEXT_REQUIRED")
 
 
 @router.get("/enterprises/{enterprise_id}/fields/{field_name}/evidence")
-async def get_field_evidence(enterprise_id: str, field_name: str, request: Request) -> dict:
+async def get_field_evidence(
+    enterprise_id: str,
+    field_name: str,
+    request: Request,
+    task_id: str = Query(...),
+) -> dict:
     deps = request.app.state.dependencies
+    scoped_task(request, task_id)
+    try:
+        bundle = deps.delivery_query_service.freeze(task_id)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    if enterprise_id not in bundle.details:
+        raise HTTPException(404, "LEAD_NOT_FOUND_IN_TASK_VERSION")
     if not deps.enterprise_repository.get_enterprise(enterprise_id):
         raise HTTPException(404, "Enterprise not found")
     values = deps.evidence_repository.list_evidence(enterprise_id, field_name)
