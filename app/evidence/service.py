@@ -26,8 +26,17 @@ class EvidenceVerificationService:
         self.normalizer = EvidenceNormalizer()
         self.resolver = ConflictAwareFieldResolver()
 
-    def start_run(self, *, task_id: str, candidate_set_id: str, resolution_run_id: str, budget: VerificationBudget | None = None) -> VerificationRun:
-        return self.repository.save_run(VerificationRun(task_id=task_id, researched_candidate_set_id=candidate_set_id, resolution_run_id=resolution_run_id, budget=budget or VerificationBudget()))
+    def start_run(
+        self, *, task_id: str, candidate_set_id: str, resolution_run_id: str, budget: VerificationBudget | None = None
+    ) -> VerificationRun:
+        return self.repository.save_run(
+            VerificationRun(
+                task_id=task_id,
+                researched_candidate_set_id=candidate_set_id,
+                resolution_run_id=resolution_run_id,
+                budget=budget or VerificationBudget(),
+            )
+        )
 
     def collect_evidence(self, run: VerificationRun) -> list[Evidence]:
         collected = []
@@ -68,11 +77,7 @@ class EvidenceVerificationService:
             if link.resolution_run_id == run.resolution_run_id
         }:
             locations = deduplicate_office_locations(
-                [
-                    item
-                    for item in self.enterprise_repository.locations.values()
-                    if item.enterprise_id == enterprise_id
-                ]
+                [item for item in self.enterprise_repository.locations.values() if item.enterprise_id == enterprise_id]
             )
             if locations:
                 source_evidence_id = locations[0].evidence_ids[0]
@@ -91,31 +96,39 @@ class EvidenceVerificationService:
                             retrieved_at=source_evidence.retrieved_at,
                             extraction_method="DETERMINISTIC_AGGREGATION",
                             raw_reference=",".join(
-                                evidence_id
-                                for location in locations
-                                for evidence_id in location.evidence_ids
+                                evidence_id for location in locations for evidence_id in location.evidence_ids
                             ),
                         )
                     )
                 )
         return collected
 
-    def resolve_fields(self, enterprise_id: str, required_fields: list[str]) -> dict:
+    def resolve_fields(
+        self,
+        enterprise_id: str,
+        required_fields: list[str],
+        *,
+        verification_run_id: str | None = None,
+    ) -> dict:
         evidence = self.repository.list_evidence(enterprise_id)
-        names = set(required_fields) | {
-            item.field_name for item in evidence if item.field_name != "office_location"
-        }
+        names = set(required_fields) | {item.field_name for item in evidence if item.field_name != "office_location"}
         fields = {}
         for name in sorted(names):
             field_evidence = [item for item in evidence if item.field_name == name]
             resolved = self.resolver.resolve(enterprise_id, name, field_evidence)
             for item in field_evidence:
                 self.repository.save_evidence(item)
-            fields[name] = self.repository.save_resolved_field(resolved)
+            fields[name] = self.repository.save_resolved_field(resolved, verification_run_id=verification_run_id)
         return fields
 
-    def build_profile(self, run: VerificationRun, enterprise_id: str, required_fields: list[str]) -> VerifiedEnterpriseProfile:
-        fields = self.resolve_fields(enterprise_id, required_fields)
+    def build_profile(
+        self, run: VerificationRun, enterprise_id: str, required_fields: list[str]
+    ) -> VerifiedEnterpriseProfile:
+        fields = self.resolve_fields(
+            enterprise_id,
+            required_fields,
+            verification_run_id=run.verification_run_id,
+        )
         addresses = [field for name, field in fields.items() if name == "address"]
         addresses.extend(
             ResolvedField(
@@ -126,9 +139,7 @@ class EvidenceVerificationService:
                 confidence=item.confidence,
                 supporting_evidence_ids=[item.evidence_id],
             )
-            for item in self.repository.list_evidence(
-                enterprise_id, "office_location"
-            )
+            for item in self.repository.list_evidence(enterprise_id, "office_location")
         )
         profile = VerifiedEnterpriseProfile(
             verification_run_id=run.verification_run_id,
@@ -141,8 +152,23 @@ class EvidenceVerificationService:
         )
         return self.repository.save_profile(profile)
 
-    def finish_run(self, run: VerificationRun, profiles: list[VerifiedEnterpriseProfile], warnings: list[str] | None = None) -> VerificationRun:
-        return self.repository.save_run(run.model_copy(update={"status": "COMPLETED", "profile_ids": [item.profile_id for item in profiles], "warnings": warnings or [], "finished_at": datetime.now(UTC)}))
+    def finish_run(
+        self, run: VerificationRun, profiles: list[VerifiedEnterpriseProfile], warnings: list[str] | None = None
+    ) -> VerificationRun:
+        return self.repository.save_run(
+            run.model_copy(
+                update={
+                    "status": "COMPLETED",
+                    "profile_ids": [item.profile_id for item in profiles],
+                    "warnings": warnings or [],
+                    "finished_at": datetime.now(UTC),
+                }
+            )
+        )
 
     def fields_needing_enrichment(self, profile: VerifiedEnterpriseProfile) -> list[str]:
-        return [name for name in profile.required_fields if not profile.field(name) or profile.field(name).status in {"MISSING", "UNVERIFIED"}]
+        return [
+            name
+            for name in profile.required_fields
+            if not profile.field(name) or profile.field(name).status in {"MISSING", "UNVERIFIED"}
+        ]

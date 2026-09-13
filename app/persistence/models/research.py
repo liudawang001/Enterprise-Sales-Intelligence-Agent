@@ -31,10 +31,9 @@ class ResearchRunRecord(Base):
     raw_candidate_set_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
     cheap_enriched_set_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
     filtered_candidate_set_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
-    researched_candidate_set_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True)
-    )
+    researched_candidate_set_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
     error_code: Mapped[str | None] = mapped_column(String(80))
+    events_json: Mapped[list] = mapped_column(JSONB, default=list)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -65,9 +64,7 @@ class CandidateSetRecord(Base):
         ForeignKey("research_runs.id", ondelete="CASCADE"),
         index=True,
     )
-    parent_set_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("candidate_sets.id")
-    )
+    parent_set_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), ForeignKey("candidate_sets.id"))
     stage: Mapped[str] = mapped_column(String(40))
     criteria_snapshot_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), index=True)
     search_plan_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True))

@@ -70,7 +70,7 @@ class InMemoryEvidenceRepository:
         self.evidence[value.evidence_id] = deepcopy(value)
         return deepcopy(value)
 
-    def save_resolved_field(self, value: ResolvedField) -> ResolvedField:
+    def save_resolved_field(self, value: ResolvedField, *, verification_run_id: str | None = None) -> ResolvedField:
         self.resolved_fields[(value.enterprise_id, value.field_name)] = deepcopy(value)
         return deepcopy(value)
 
@@ -79,7 +79,11 @@ class InMemoryEvidenceRepository:
         return deepcopy(value)
 
     def list_evidence(self, enterprise_id: str, field_name: str | None = None) -> list[Evidence]:
-        return [deepcopy(item) for item in self.evidence.values() if item.enterprise_id == enterprise_id and (field_name is None or item.field_name == field_name)]
+        return [
+            deepcopy(item)
+            for item in self.evidence.values()
+            if item.enterprise_id == enterprise_id and (field_name is None or item.field_name == field_name)
+        ]
 
     def get_profile(self, enterprise_id: str) -> VerifiedEnterpriseProfile | None:
         values = [item for item in self.profiles.values() if item.enterprise_id == enterprise_id]
@@ -118,11 +122,27 @@ class EvidenceRepository:
         return value
 
     async def save_evidence(self, value: Evidence) -> Evidence:
-        record = await self.session.get(
-            EnterpriseEvidenceRecord, UUID(value.evidence_id)
-        )
+        record = await self.session.get(EnterpriseEvidenceRecord, UUID(value.evidence_id))
         if not record:
-            self.session.add(EnterpriseEvidenceRecord(id=UUID(value.evidence_id), enterprise_id=UUID(value.enterprise_id), field_name=value.field_name, value_json=value.value, normalized_value_json=value.normalized_value, provider=value.provider, source_type=value.source_type.value, source_record_id=UUID(value.source_record_id), source_url=value.source_url, retrieved_at=value.retrieved_at, confidence=value.confidence, extraction_method=value.extraction_method, raw_reference=value.raw_reference, stale=value.stale, created_at=value.created_at))
+            self.session.add(
+                EnterpriseEvidenceRecord(
+                    id=UUID(value.evidence_id),
+                    enterprise_id=UUID(value.enterprise_id),
+                    field_name=value.field_name,
+                    value_json=value.value,
+                    normalized_value_json=value.normalized_value,
+                    provider=value.provider,
+                    source_type=value.source_type.value,
+                    source_record_id=UUID(value.source_record_id),
+                    source_url=value.source_url,
+                    retrieved_at=value.retrieved_at,
+                    confidence=value.confidence,
+                    extraction_method=value.extraction_method,
+                    raw_reference=value.raw_reference,
+                    stale=value.stale,
+                    created_at=value.created_at,
+                )
+            )
         else:
             record.confidence = value.confidence
             record.stale = value.stale
@@ -133,12 +153,37 @@ class EvidenceRepository:
     async def save_resolved_field(self, value: ResolvedField, *, verification_run_id: str) -> ResolvedField:
         record = await self.session.get(ResolvedFieldRecord, UUID(value.resolved_field_id))
         if not record:
-            self.session.add(ResolvedFieldRecord(id=UUID(value.resolved_field_id), verification_run_id=UUID(verification_run_id), enterprise_id=UUID(value.enterprise_id), field_name=value.field_name, primary_value_json=value.primary_value, status=value.status.value, confidence=value.confidence, supporting_evidence_ids=value.supporting_evidence_ids, conflicting_evidence_ids=value.conflicting_evidence_ids, alternatives=value.alternatives, selection_reason=value.selection_reason, resolved_at=value.resolved_at))
+            self.session.add(
+                ResolvedFieldRecord(
+                    id=UUID(value.resolved_field_id),
+                    verification_run_id=UUID(verification_run_id),
+                    enterprise_id=UUID(value.enterprise_id),
+                    field_name=value.field_name,
+                    primary_value_json=value.primary_value,
+                    status=value.status.value,
+                    confidence=value.confidence,
+                    supporting_evidence_ids=value.supporting_evidence_ids,
+                    conflicting_evidence_ids=value.conflicting_evidence_ids,
+                    alternatives=value.alternatives,
+                    selection_reason=value.selection_reason,
+                    resolved_at=value.resolved_at,
+                )
+            )
             await self.session.flush()
         return value
 
     async def save_profile(self, value: VerifiedEnterpriseProfile) -> VerifiedEnterpriseProfile:
         if not await self.session.get(VerifiedEnterpriseProfileRecord, UUID(value.profile_id)):
-            self.session.add(VerifiedEnterpriseProfileRecord(id=UUID(value.profile_id), verification_run_id=UUID(value.verification_run_id), enterprise_id=UUID(value.enterprise_id), profile_json=value.model_dump(mode="json"), status=value.status.value, evidence_coverage=value.evidence_coverage, updated_at=value.updated_at))
+            self.session.add(
+                VerifiedEnterpriseProfileRecord(
+                    id=UUID(value.profile_id),
+                    verification_run_id=UUID(value.verification_run_id),
+                    enterprise_id=UUID(value.enterprise_id),
+                    profile_json=value.model_dump(mode="json"),
+                    status=value.status.value,
+                    evidence_coverage=value.evidence_coverage,
+                    updated_at=value.updated_at,
+                )
+            )
             await self.session.flush()
         return value

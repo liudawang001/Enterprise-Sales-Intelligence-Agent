@@ -42,13 +42,23 @@ class LocalExportStorage:
 
     def open(self, export_id: str) -> Path:
         path = self._paths.get(export_id)
+        if path is None:
+            export_dir = (self.root / export_id).resolve()
+            if export_dir.parent == self.root and export_dir.is_dir():
+                files = [candidate for candidate in export_dir.iterdir() if candidate.is_file()]
+                if len(files) == 1:
+                    path = files[0].resolve()
+                    self._paths[export_id] = path
         if not path or not path.is_file():
             raise FileNotFoundError("EXPORT_ARTIFACT_NOT_FOUND")
         return path
 
     def exists(self, export_id: str) -> bool:
-        path = self._paths.get(export_id)
-        return bool(path and path.is_file())
+        try:
+            self.open(export_id)
+        except FileNotFoundError:
+            return False
+        return True
 
     def delete(self, export_id: str) -> None:
         path = self._paths.pop(export_id, None)
@@ -57,28 +67,54 @@ class LocalExportStorage:
 
 
 class S3CompatibleExportStorage:
-    def __init__(self, *, bucket: str, endpoint_url: str = "", region: str = "", access_key_id: str = "", secret_access_key: str = "", signed_url_ttl_seconds: int = 300) -> None:
+    def __init__(
+        self,
+        *,
+        bucket: str,
+        endpoint_url: str = "",
+        region: str = "",
+        access_key_id: str = "",
+        secret_access_key: str = "",
+        signed_url_ttl_seconds: int = 300,
+    ) -> None:
         try:
             import boto3
         except ImportError as exc:
             raise RuntimeError("boto3 is required for S3 export storage") from exc
         self.bucket = bucket
         self.signed_url_ttl_seconds = signed_url_ttl_seconds
-        self.client = boto3.client("s3", endpoint_url=endpoint_url or None, region_name=region or None, aws_access_key_id=access_key_id or None, aws_secret_access_key=secret_access_key or None)
+        self.client = boto3.client(
+            "s3",
+            endpoint_url=endpoint_url or None,
+            region_name=region or None,
+            aws_access_key_id=access_key_id or None,
+            aws_secret_access_key=secret_access_key or None,
+        )
         self._keys: dict[str, str] = {}
 
     def save(self, export_id: str, file_name: str, content: bytes) -> StoredExport:
         safe_name = sanitize_filename(file_name)
         key = f"exports/{export_id}/{safe_name}"
-        self.client.put_object(Bucket=self.bucket, Key=key, Body=content, ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ServerSideEncryption="AES256")
+        self.client.put_object(
+            Bucket=self.bucket,
+            Key=key,
+            Body=content,
+            ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            ServerSideEncryption="AES256",
+        )
         self._keys[export_id] = key
-        return StoredExport(artifact_path=f"s3://{self.bucket}/{key}", file_name=safe_name, file_size=len(content), sha256=content_sha256(content))
+        return StoredExport(
+            artifact_path=f"s3://{self.bucket}/{key}",
+            file_name=safe_name,
+            file_size=len(content),
+            sha256=content_sha256(content),
+        )
 
     def open(self, export_id: str) -> Path:
         raise FileNotFoundError("S3_ARTIFACT_REQUIRES_SIGNED_URL")
 
     def exists(self, export_id: str) -> bool:
-        key = self._keys.get(export_id)
+        key = self._key_for(export_id)
         if not key:
             return False
         try:
@@ -93,7 +129,25 @@ class S3CompatibleExportStorage:
             self.client.delete_object(Bucket=self.bucket, Key=key)
 
     def signed_url(self, export_id: str) -> str:
-        key = self._keys.get(export_id)
+        key = self._key_for(export_id)
         if not key:
             raise FileNotFoundError("EXPORT_ARTIFACT_NOT_FOUND")
-        return self.client.generate_presigned_url("get_object", Params={"Bucket": self.bucket, "Key": key}, ExpiresIn=self.signed_url_ttl_seconds)
+        return self.client.generate_presigned_url(
+            "get_object", Params={"Bucket": self.bucket, "Key": key}, ExpiresIn=self.signed_url_ttl_seconds
+        )
+
+    def _key_for(self, export_id: str) -> str | None:
+        key = self._keys.get(export_id)
+        if key:
+            return key
+        response = self.client.list_objects_v2(
+            Bucket=self.bucket,
+            Prefix=f"exports/{export_id}/",
+            MaxKeys=2,
+        )
+        objects = response.get("Contents", [])
+        if len(objects) != 1:
+            return None
+        key = objects[0]["Key"]
+        self._keys[export_id] = key
+        return key
