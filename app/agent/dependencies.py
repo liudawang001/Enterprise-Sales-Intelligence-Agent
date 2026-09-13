@@ -31,9 +31,9 @@ from app.tasks.references import TaskReferenceResolver
 class AgentDependencies:
     task_repository: MockTaskRepository
     task_service: TaskService
-    business_service: MockBusinessService
+    business_service: MockBusinessService | None
     research_service: ResearchService
-    scoring_service: MockScoringService
+    scoring_service: MockScoringService | None
     rule_service: BusinessRuleService
     knowledge_service: object | None = None
     enterprise_repository: InMemoryEnterpriseRepository | None = None
@@ -80,6 +80,7 @@ def build_dependencies(settings: Settings | None = None) -> AgentDependencies:
         execution_snapshot_repository=execution_snapshot_repository,
         delivery_snapshot_repository=delivery_snapshot_repository,
         export_repository=export_repository,
+        use_legacy_mock_services=True,
     )
 
 
@@ -144,6 +145,7 @@ def _assemble_dependencies(
     execution_snapshot_repository,
     delivery_snapshot_repository,
     export_repository,
+    use_legacy_mock_services: bool = False,
 ) -> AgentDependencies:
     for profile in demo_scoring_profiles():
         lead_score_repository.save_profile(profile)
@@ -179,9 +181,9 @@ def _assemble_dependencies(
     deps = AgentDependencies(
         task_repository=repository,
         task_service=TaskService(repository),
-        business_service=MockBusinessService(rule_service),
+        business_service=MockBusinessService(rule_service) if use_legacy_mock_services else None,
         research_service=research_service,
-        scoring_service=MockScoringService(),
+        scoring_service=MockScoringService() if use_legacy_mock_services else None,
         rule_service=rule_service,
         enterprise_repository=enterprise_repository,
         evidence_repository=evidence_repository,
