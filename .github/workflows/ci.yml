@@ -42,6 +42,7 @@ jobs:
       - name: Phase 8 format check
         run: ruff format --check app/runtime app/infrastructure app/observability app/security app/health app/settings app/repositories/task_repository.py tests/runtime tests/infrastructure tests/faults tests/security tests/recovery tests/integration/test_phase8_postgres_runtime.py tests/integration/test_phase8_redis_runtime.py scripts/init_checkpointer.py loadtest/locustfile.py
       - run: alembic upgrade head
+      - run: python -m scripts.init_checkpointer
       - run: pytest
       - run: pytest -m integration
       - run: pytest -m recovery
