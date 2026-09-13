@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 from uuid import uuid4
 
+from langchain_core.runnables import RunnableLambda
+
 from app.agent.dependencies import AgentDependencies
 from app.agent.state import AgentState
 from app.criteria.evaluator import DefaultCriteriaEvaluator
@@ -11,9 +13,7 @@ from app.research.models import CandidateStatus
 
 def _criteria(state: AgentState, deps: AgentDependencies):
     criteria_id = state.get("criteria_snapshot_id")
-    return (
-        deps.rule_service.repository.criteria.get(criteria_id) if criteria_id else None
-    )
+    return deps.rule_service.repository.criteria.get(criteria_id) if criteria_id else None
 
 
 def _execution_is_current(deps: AgentDependencies, run_id: str) -> bool:
@@ -36,12 +36,7 @@ def make_load_criteria(deps: AgentDependencies):
         criteria = _criteria(state, deps)
         if not criteria:
             task = deps.task_repository.get_task(state.get("active_task_id"))
-            if (
-                not task
-                or not task.business
-                or not task.region
-                or not task.target_count
-            ):
+            if not task or not task.business or not task.region or not task.target_count:
                 raise ValueError("CRITERIA_NOT_FOUND")
             criteria = deps.rule_service.compile(
                 task_id=task.task_id,
@@ -103,29 +98,26 @@ def dispatch_discovery(state: AgentState) -> dict:
 
 
 def make_run_discovery_batch(deps: AgentDependencies):
-    def node(state: AgentState) -> dict:
+    async def async_node(state: AgentState) -> dict:
         if not _execution_is_current(deps, state["research_run_id"]):
             return {"discovery_result_refs": [_superseded_batch(deps, state["research_run_id"], "DISCOVERY")]}
-        ref = asyncio.run(
-            deps.research_service.run_discovery_batch(
-                state["research_run_id"], state.get("discovery_batch", [])
-            )
+        ref = await deps.research_service.run_discovery_batch(
+            state["research_run_id"], state.get("discovery_batch", [])
         )
         return {"discovery_result_refs": [ref]}
 
-    return node
+    def sync_node(state: AgentState) -> dict:
+        return asyncio.run(async_node(state))
+
+    return RunnableLambda(sync_node, afunc=async_node)
 
 
 def make_merge_discovery(deps: AgentDependencies):
     def node(state: AgentState) -> dict:
-        result = deps.research_service.merge_discovery(
-            state["research_run_id"], state.get("discovery_result_refs", [])
-        )
+        result = deps.research_service.merge_discovery(state["research_run_id"], state.get("discovery_result_refs", []))
         ids = list(result.candidate_ids)
         plan = deps.research_service.repository.plans[state["search_plan_id"]]
-        batches = [
-            ids[i : i + plan.batch_size] for i in range(0, len(ids), plan.batch_size)
-        ] or [[]]
+        batches = [ids[i : i + plan.batch_size] for i in range(0, len(ids), plan.batch_size)] or [[]]
         return {
             "raw_candidate_set_id": result.candidate_set_id,
             "candidate_count": result.candidate_count,
@@ -204,17 +196,16 @@ def dispatch_cheap_enrichment(state: AgentState) -> dict:
 
 
 def make_run_enrichment_batch(deps: AgentDependencies):
-    def node(state: AgentState) -> dict:
+    async def async_node(state: AgentState) -> dict:
         if not _execution_is_current(deps, state["research_run_id"]):
             return {"enrichment_result_refs": [_superseded_batch(deps, state["research_run_id"], "ENRICHMENT")]}
-        ref = asyncio.run(
-            deps.research_service.enrich_batch(
-                state["research_run_id"], state.get("enrichment_batch", [])
-            )
-        )
+        ref = await deps.research_service.enrich_batch(state["research_run_id"], state.get("enrichment_batch", []))
         return {"enrichment_result_refs": [ref]}
 
-    return node
+    def sync_node(state: AgentState) -> dict:
+        return asyncio.run(async_node(state))
+
+    return RunnableLambda(sync_node, afunc=async_node)
 
 
 def make_apply_hard_filters(deps: AgentDependencies):
@@ -255,9 +246,7 @@ def make_persist_cheap_enriched_set(deps: AgentDependencies):
 def make_select_deep_research(deps: AgentDependencies):
     def node(state: AgentState) -> dict:
         plan = deps.research_service.repository.plans[state["search_plan_id"]]
-        candidates = deps.research_service.repository.get_candidates(
-            state["filtered_candidate_set_id"]
-        )
+        candidates = deps.research_service.repository.get_candidates(state["filtered_candidate_set_id"])
         criteria = _criteria(state, deps)
         evaluator = DefaultCriteriaEvaluator()
         candidates.sort(
@@ -265,15 +254,9 @@ def make_select_deep_research(deps: AgentDependencies):
             reverse=True,
         )
         selected = [
-            v.candidate_id
-            for v in candidates[
-                : max(plan.target_count, min(plan.candidate_target, len(candidates)))
-            ]
+            v.candidate_id for v in candidates[: max(plan.target_count, min(plan.candidate_target, len(candidates)))]
         ]
-        batches = [
-            selected[i : i + plan.batch_size]
-            for i in range(0, len(selected), plan.batch_size)
-        ] or [[]]
+        batches = [selected[i : i + plan.batch_size] for i in range(0, len(selected), plan.batch_size)] or [[]]
         for candidate_id in selected:
             item = deps.research_service.repository.candidates[candidate_id]
             deps.research_service.repository.save_candidate(
@@ -300,17 +283,18 @@ def dispatch_deep_research(state: AgentState) -> dict:
 
 
 def make_run_deep_research_batch(deps: AgentDependencies):
-    def node(state: AgentState) -> dict:
+    async def async_node(state: AgentState) -> dict:
         if not _execution_is_current(deps, state["research_run_id"]):
             return {"deep_research_result_refs": [_superseded_batch(deps, state["research_run_id"], "DEEP_RESEARCH")]}
-        ref = asyncio.run(
-            deps.research_service.deep_research_batch(
-                state["research_run_id"], state.get("deep_research_batch", [])
-            )
+        ref = await deps.research_service.deep_research_batch(
+            state["research_run_id"], state.get("deep_research_batch", [])
         )
         return {"deep_research_result_refs": [ref]}
 
-    return node
+    def sync_node(state: AgentState) -> dict:
+        return asyncio.run(async_node(state))
+
+    return RunnableLambda(sync_node, afunc=async_node)
 
 
 def make_persist_researched_set(deps: AgentDependencies):
@@ -322,8 +306,7 @@ def make_persist_researched_set(deps: AgentDependencies):
             cid
             for cid in ids
             if deps.research_service.repository.candidates.get(cid)
-            and deps.research_service.repository.candidates[cid].research_run_id
-            == state["research_run_id"]
+            and deps.research_service.repository.candidates[cid].research_run_id == state["research_run_id"]
         ]
         result = deps.research_service.finalize(
             state["research_run_id"],

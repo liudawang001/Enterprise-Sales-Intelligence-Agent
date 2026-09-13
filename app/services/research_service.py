@@ -97,8 +97,7 @@ def select_internal_links(home_url: str, content: str, max_pages: int) -> list[s
     selected = [
         url
         for url in links
-        if urlparse(url).hostname == home_domain
-        and any(keyword in url.lower() for keyword in keywords)
+        if urlparse(url).hostname == home_domain and any(keyword in url.lower() for keyword in keywords)
     ]
     return list(dict.fromkeys(selected))[: max(0, max_pages - 1)]
 
@@ -109,9 +108,7 @@ class WebFactExtractor:
     @staticmethod
     def extract(text: str, domain: str | None = None) -> CompanyWebFacts:
         phones, emails = filter_public_contacts(text[:30000])
-        return CompanyWebFacts(
-            public_phones=phones, public_emails=emails, website_domain=domain
-        )
+        return CompanyWebFacts(public_phones=phones, public_emails=emails, website_domain=domain)
 
 
 class ResearchService:
@@ -130,7 +127,11 @@ class ResearchService:
         self._runtime_infrastructure: dict = {}
 
     def configure_runtime_infrastructure(self, *, cache=None, rate_limiter=None, circuit_breaker=None) -> None:
-        self._runtime_infrastructure = {"distributed_cache": cache, "rate_limiter": rate_limiter, "circuit_breaker": circuit_breaker}
+        self._runtime_infrastructure = {
+            "distributed_cache": cache,
+            "rate_limiter": rate_limiter,
+            "circuit_breaker": circuit_breaker,
+        }
 
     def _budget(self) -> ResearchBudget:
         return ResearchBudget(
@@ -140,6 +141,41 @@ class ResearchService:
             max_web_pages=self.settings.research_max_web_pages,
             max_candidates=self.settings.research_max_candidates,
         )
+
+    def _runtime(self, run_id: str) -> BoundedProviderRuntime:
+        existing = self._runtimes.get(run_id)
+        if existing is not None:
+            return existing
+        run = self.repository.runs[run_id]
+        plan = self.repository.plans[run.search_plan_id]
+        guard = BudgetGuard(plan.budget)
+        if run.used_budget:
+            guard.used.update(run.used_budget)
+        else:
+            for tool_run in self.repository.tool_runs.values():
+                if tool_run.research_run_id != run_id:
+                    continue
+                attempts = tool_run.retry_count + 1
+                guard.used["tool_calls"] += attempts
+                guard.used[tool_run.tool_name] += attempts
+                if tool_run.tool_name == "web_fetch":
+                    guard.used["web_pages"] += attempts
+        limits = {
+            "enterprise_search": self.settings.research_enterprise_concurrency,
+            "enterprise_profile": self.settings.research_enterprise_concurrency,
+            "map": self.settings.research_map_concurrency,
+            "web_search": self.settings.research_web_search_concurrency,
+            "web_fetch": self.settings.research_web_fetch_concurrency,
+        }
+        runtime = BoundedProviderRuntime(
+            self.repository,
+            guard,
+            max_retries=self.settings.research_max_retries,
+            concurrency=limits,
+            **self._runtime_infrastructure,
+        )
+        self._runtimes[run_id] = runtime
+        return runtime
 
     def build_plan(self, criteria: LeadCriteria) -> tuple[ResearchRun, object]:
         caps = {
@@ -155,9 +191,7 @@ class ResearchService:
             max_expansion_rounds=self.settings.research_max_expansion_rounds,
             budget=self._budget(),
         ).build(criteria)
-        SearchPlanValidator(
-            set(caps), set().union(*(v.supported_fields for v in caps.values()))
-        ).validate(plan)
+        SearchPlanValidator(set(caps), set().union(*(v.supported_fields for v in caps.values()))).validate(plan)
         run = ResearchRun(
             task_id=criteria.task_id,
             criteria_snapshot_id=criteria.criteria_id,
@@ -203,16 +237,14 @@ class ResearchService:
                     page=query.page or 1,
                     page_size=query.page_size or 20,
                 )
-                result = await self._runtimes[run_id].execute(
+                result = await self._runtime(run_id).execute(
                     research_run_id=run_id,
                     task_id=run.task_id,
                     query_id=query.query_id,
                     provider=self.providers.enterprise.name,
                     operation="enterprise_search",
                     arguments=request.model_dump(),
-                    call=lambda r=request: self.providers.enterprise.search_companies(
-                        r
-                    ),
+                    call=lambda r=request: self.providers.enterprise.search_companies(r),
                 )
                 source_type = ResearchSourceType.ENTERPRISE_DATABASE
             elif query.provider_type == "map":
@@ -224,7 +256,7 @@ class ResearchService:
                     page=query.page or 1,
                     page_size=min(query.page_size or 20, 25),
                 )
-                result = await self._runtimes[run_id].execute(
+                result = await self._runtime(run_id).execute(
                     research_run_id=run_id,
                     task_id=run.task_id,
                     query_id=query.query_id,
@@ -239,7 +271,7 @@ class ResearchService:
                     query=query.query_text or "企业",
                     max_results=min(query.page_size or 10, 20),
                 )
-                result = await self._runtimes[run_id].execute(
+                result = await self._runtime(run_id).execute(
                     research_run_id=run_id,
                     task_id=run.task_id,
                     query_id=query.query_id,
@@ -252,22 +284,17 @@ class ResearchService:
             if result.status not in {ToolStatus.SUCCESS, ToolStatus.EMPTY}:
                 continue
             for row in _rows(result.data):
-                name = str(
-                    row.get("name") or row.get("company_name") or row.get("title") or ""
-                ).strip()
+                name = str(row.get("name") or row.get("company_name") or row.get("title") or "").strip()
                 if not name:
                     continue
                 item = RawEnterpriseCandidate(
                     research_run_id=run_id,
                     source_provider=result.provider,
                     source_entity_id=str(row.get("id")) if row.get("id") else None,
-                    unified_social_credit_code=row.get("unified_social_credit_code")
-                    or row.get("credit_code"),
-                    provider_group_id=row.get("provider_group_id")
-                    or row.get("group_id"),
+                    unified_social_credit_code=row.get("unified_social_credit_code") or row.get("credit_code"),
+                    provider_group_id=row.get("provider_group_id") or row.get("group_id"),
                     provider_relation=row.get("provider_relation"),
-                    parent_source_entity_id=row.get("parent_source_entity_id")
-                    or row.get("parent_id"),
+                    parent_source_entity_id=row.get("parent_source_entity_id") or row.get("parent_id"),
                     source_name=name,
                     normalized_name=normalize_name(name),
                     source_url=row.get("url") or row.get("website"),
@@ -288,8 +315,7 @@ class ResearchService:
                 self.repository.save_candidate(item)
                 payload = (
                     row
-                    if source_type != ResearchSourceType.ENTERPRISE_DATABASE
-                    or result.provider.startswith("fake")
+                    if source_type != ResearchSourceType.ENTERPRISE_DATABASE or result.provider.startswith("fake")
                     else None
                 )
                 self.repository.save_source(
@@ -325,14 +351,10 @@ class ResearchService:
                 if item.research_run_id != run_id:
                     continue
                 duplicate_id = (
-                    provider_ids.get((item.source_provider, item.source_entity_id))
-                    if item.source_entity_id
-                    else None
+                    provider_ids.get((item.source_provider, item.source_entity_id)) if item.source_entity_id else None
                 )
                 if not duplicate_id and item.address:
-                    duplicate_id = names_and_addresses.get(
-                        (item.normalized_name, item.address)
-                    )
+                    duplicate_id = names_and_addresses.get((item.normalized_name, item.address))
                 if not duplicate_id and item.source_url:
                     duplicate_id = urls.get(item.source_url)
                 if duplicate_id:
@@ -356,14 +378,9 @@ class ResearchService:
         discovery_runs = [
             value
             for value in self.repository.tool_runs.values()
-            if value.research_run_id == run_id
-            and value.tool_name in {"enterprise_search", "map", "web_search"}
+            if value.research_run_id == run_id and value.tool_name in {"enterprise_search", "map", "web_search"}
         ]
-        if (
-            not selected
-            and discovery_runs
-            and all(value.status == ToolStatus.FAILED for value in discovery_runs)
-        ):
+        if not selected and discovery_runs and all(value.status == ToolStatus.FAILED for value in discovery_runs):
             self.repository.runs[run_id] = self.repository.runs[run_id].model_copy(
                 update={
                     "status": ResearchRunStatus.FAILED,
@@ -387,34 +404,25 @@ class ResearchService:
                 "stage": "DISCOVERY_COMPLETED",
             }
         )
-        self.repository.record_event(
-            run_id, "DISCOVERY_COMPLETED", candidate_count=result.candidate_count
-        )
+        self.repository.record_event(run_id, "DISCOVERY_COMPLETED", candidate_count=result.candidate_count)
         return result
 
     async def enrich_batch(self, run_id: str, candidate_ids: list[str]) -> str:
         run = self.repository.runs[run_id]
         for cid in candidate_ids:
             item = self.repository.candidates[cid]
-            if (
-                item.source_entity_id
-                and item.source_provider == self.providers.enterprise.name
-            ):
+            if item.source_entity_id and item.source_provider == self.providers.enterprise.name:
                 request = EnterpriseProfileRequest(company_id=item.source_entity_id)
-                result = await self._runtimes[run_id].execute(
+                result = await self._runtime(run_id).execute(
                     research_run_id=run_id,
                     task_id=run.task_id,
                     query_id=None,
                     provider=self.providers.enterprise.name,
                     operation="enterprise_profile",
                     arguments=request.model_dump(),
-                    call=lambda r=request: (
-                        self.providers.enterprise.get_company_profile(r)
-                    ),
+                    call=lambda r=request: self.providers.enterprise.get_company_profile(r),
                 )
-                if result.status == ToolStatus.SUCCESS and isinstance(
-                    result.data, dict
-                ):
+                if result.status == ToolStatus.SUCCESS and isinstance(result.data, dict):
                     updates = {
                         key: result.data[key]
                         for key in (
@@ -433,9 +441,7 @@ class ResearchService:
                         )
                         if result.data.get(key) is not None
                     }
-                    item = item.model_copy(
-                        update={**updates, "status": CandidateStatus.ENRICHED}
-                    )
+                    item = item.model_copy(update={**updates, "status": CandidateStatus.ENRICHED})
                     self.repository.save_candidate(item)
                     self.repository.save_source(
                         SourceRecord(
@@ -451,10 +457,8 @@ class ResearchService:
                     )
             if item.office_count is None:
                 region = self.region_resolver.resolve(item.region or "")
-                request = MapSearchRequest(
-                    keywords=item.source_name, region=region.name, adcode=region.adcode
-                )
-                result = await self._runtimes[run_id].execute(
+                request = MapSearchRequest(keywords=item.source_name, region=region.name, adcode=region.adcode)
+                result = await self._runtime(run_id).execute(
                     research_run_id=run_id,
                     task_id=run.task_id,
                     query_id=None,
@@ -468,9 +472,7 @@ class ResearchService:
                     item = item.model_copy(
                         update={
                             "office_count": len(places),
-                            "locations": [
-                                p.get("address") for p in places if p.get("address")
-                            ],
+                            "locations": [p.get("address") for p in places if p.get("address")],
                             "status": CandidateStatus.ENRICHED,
                         }
                     )
@@ -495,16 +497,12 @@ class ResearchService:
             stage="CHEAP_ENRICHMENT",
         )
 
-    def persist_cheap_enriched_set(
-        self, run_id: str, parent_set_id: str
-    ) -> CandidateSet:
+    def persist_cheap_enriched_set(self, run_id: str, parent_set_id: str) -> CandidateSet:
         run, plan = (
             self.repository.runs[run_id],
             self.repository.plans[self.repository.runs[run_id].search_plan_id],
         )
-        ids = [
-            item.candidate_id for item in self.repository.get_candidates(parent_set_id)
-        ]
+        ids = [item.candidate_id for item in self.repository.get_candidates(parent_set_id)]
         result = self.repository.save_candidate_set(
             CandidateSet(
                 research_run_id=run_id,
@@ -521,22 +519,16 @@ class ResearchService:
                 "stage": "ENRICHMENT_COMPLETED",
             }
         )
-        self.repository.record_event(
-            run_id, "ENRICHMENT_COMPLETED", candidate_count=result.candidate_count
-        )
+        self.repository.record_event(run_id, "ENRICHMENT_COMPLETED", candidate_count=result.candidate_count)
         return result
 
-    def apply_hard_filters(
-        self, run_id: str, parent_set_id: str, criteria: LeadCriteria
-    ) -> CandidateSet:
+    def apply_hard_filters(self, run_id: str, parent_set_id: str, criteria: LeadCriteria) -> CandidateSet:
         selected = []
         evaluator = DefaultCriteriaEvaluator()
         for item in self.repository.get_candidates(parent_set_id):
             outcome = evaluator.evaluate_hard_constraints(item.model_dump(), criteria)
             if outcome == FilterOutcome.NO_MATCH:
-                self.repository.save_candidate(
-                    item.model_copy(update={"status": CandidateStatus.FILTERED_OUT})
-                )
+                self.repository.save_candidate(item.model_copy(update={"status": CandidateStatus.FILTERED_OUT}))
             else:
                 selected.append(item.candidate_id)
         plan = self.repository.plans[self.repository.runs[run_id].search_plan_id]
@@ -556,9 +548,7 @@ class ResearchService:
                 "stage": "FILTER_COMPLETED",
             }
         )
-        self.repository.record_event(
-            run_id, "FILTER_COMPLETED", candidate_count=result.candidate_count
-        )
+        self.repository.record_event(run_id, "FILTER_COMPLETED", candidate_count=result.candidate_count)
         return result
 
     async def deep_research_batch(self, run_id: str, candidate_ids: list[str]) -> str:
@@ -567,10 +557,8 @@ class ResearchService:
             item = self.repository.candidates[cid]
             website = item.website_candidate
             if not website:
-                request = WebSearchRequest(
-                    query=f'"{item.source_name}" 官网', max_results=5
-                )
-                result = await self._runtimes[run_id].execute(
+                request = WebSearchRequest(query=f'"{item.source_name}" 官网', max_results=5)
+                result = await self._runtime(run_id).execute(
                     research_run_id=run_id,
                     task_id=run.task_id,
                     query_id=None,
@@ -580,9 +568,7 @@ class ResearchService:
                     call=lambda r=request: self.providers.web_search.search(r),
                 )
                 rows = _rows(result.data) if result.status == ToolStatus.SUCCESS else []
-                website_candidate = WebsiteDiscoveryService.choose(
-                    item.source_name, rows
-                )
+                website_candidate = WebsiteDiscoveryService.choose(item.source_name, rows)
                 website = str(website_candidate.url) if website_candidate else None
                 for row in rows:
                     self.repository.save_source(
@@ -601,18 +587,14 @@ class ResearchService:
                         )
                     )
             if not website:
-                self.repository.save_candidate(
-                    item.model_copy(update={"status": CandidateStatus.PARTIAL})
-                )
+                self.repository.save_candidate(item.model_copy(update={"status": CandidateStatus.PARTIAL}))
                 continue
             try:
                 request = WebFetchRequest(url=website)
             except ValueError:
-                self.repository.save_candidate(
-                    item.model_copy(update={"status": CandidateStatus.PARTIAL})
-                )
+                self.repository.save_candidate(item.model_copy(update={"status": CandidateStatus.PARTIAL}))
                 continue
-            result = await self._runtimes[run_id].execute(
+            result = await self._runtime(run_id).execute(
                 research_run_id=run_id,
                 task_id=run.task_id,
                 query_id=None,
@@ -624,25 +606,19 @@ class ResearchService:
             if result.status == ToolStatus.SUCCESS:
                 text = str((result.data or {}).get("markdown", ""))[:30000]
                 page_texts = [text]
-                for internal_url in select_internal_links(
-                    website, text, self.settings.research_max_pages_per_company
-                ):
+                for internal_url in select_internal_links(website, text, self.settings.research_max_pages_per_company):
                     internal_request = WebFetchRequest(url=internal_url)
-                    internal_result = await self._runtimes[run_id].execute(
+                    internal_result = await self._runtime(run_id).execute(
                         research_run_id=run_id,
                         task_id=run.task_id,
                         query_id=None,
                         provider=self.providers.web_fetch.name,
                         operation="web_fetch",
                         arguments=internal_request.model_dump(mode="json"),
-                        call=lambda r=internal_request: self.providers.web_fetch.fetch(
-                            r
-                        ),
+                        call=lambda r=internal_request: self.providers.web_fetch.fetch(r),
                     )
                     if internal_result.status == ToolStatus.SUCCESS:
-                        internal_text = str(
-                            (internal_result.data or {}).get("markdown", "")
-                        )[:30000]
+                        internal_text = str((internal_result.data or {}).get("markdown", ""))[:30000]
                         page_texts.append(internal_text)
                         self.repository.save_source(
                             SourceRecord(
@@ -652,16 +628,12 @@ class ResearchService:
                                 source_type=ResearchSourceType.PUBLIC_WEBPAGE,
                                 source_url=internal_url,
                                 content_text=internal_text,
-                                content_hash=hashlib.sha256(
-                                    internal_text.encode()
-                                ).hexdigest(),
+                                content_hash=hashlib.sha256(internal_text.encode()).hexdigest(),
                                 http_status=200,
                                 retrieved_at=internal_result.source_retrieved_at,
                             )
                         )
-                facts = WebFactExtractor.extract(
-                    "\n".join(page_texts), urlparse(website).hostname
-                )
+                facts = WebFactExtractor.extract("\n".join(page_texts), urlparse(website).hostname)
                 update = {
                     "website_candidate": website,
                     "status": CandidateStatus.RESEARCHED,
@@ -683,16 +655,12 @@ class ResearchService:
                     )
                 )
             else:
-                self.repository.save_candidate(
-                    item.model_copy(update={"status": CandidateStatus.PARTIAL})
-                )
+                self.repository.save_candidate(item.model_copy(update={"status": CandidateStatus.PARTIAL}))
         return self.repository.save_batch_result(
             str(uuid4()), candidate_ids, research_run_id=run_id, stage="DEEP_RESEARCH"
         )
 
-    def finalize(
-        self, run_id: str, parent_set_id: str, candidate_ids: list[str]
-    ) -> CandidateSet:
+    def finalize(self, run_id: str, parent_set_id: str, candidate_ids: list[str]) -> CandidateSet:
         run, plan = (
             self.repository.runs[run_id],
             self.repository.plans[self.repository.runs[run_id].search_plan_id],
@@ -708,8 +676,7 @@ class ResearchService:
             )
         )
         exhausted = any(
-            value.research_run_id == run_id
-            and value.status == ToolStatus.BUDGET_BLOCKED
+            value.research_run_id == run_id and value.status == ToolStatus.BUDGET_BLOCKED
             for value in self.repository.tool_runs.values()
         )
         status = (
@@ -729,7 +696,7 @@ class ResearchService:
                 "researched_candidate_set_id": result.candidate_set_id,
                 "status": status,
                 "stage": "RESEARCH_COMPLETED",
-                "used_budget": dict(self._runtimes[run_id].guard.used),
+                "used_budget": dict(self._runtime(run_id).guard.used),
                 "error_code": error_code,
                 "finished_at": datetime.now(UTC),
             }
@@ -745,10 +712,7 @@ class ResearchService:
 
     def get_candidates(self, candidate_set_id: str | None) -> list[Lead]:
         if candidate_set_id in self._legacy_sets:
-            return [
-                item.model_copy(deep=True)
-                for item in self._legacy_sets[candidate_set_id]
-            ]
+            return [item.model_copy(deep=True) for item in self._legacy_sets[candidate_set_id]]
         return [
             Lead(
                 company_name=v.source_name,
@@ -794,7 +758,7 @@ class ResearchService:
         if set(fields) & enterprise_fields and item.source_entity_id and calls < max_calls:
             calls += 1
             request = EnterpriseProfileRequest(company_id=item.source_entity_id)
-            result = await self._runtimes[run_id].execute(
+            result = await self._runtime(run_id).execute(
                 research_run_id=run_id,
                 task_id=run.task_id,
                 query_id=None,
@@ -812,11 +776,7 @@ class ResearchService:
                             provider=self.providers.enterprise.name,
                             source_type=ResearchSourceType.ENTERPRISE_DATABASE,
                             source_id=item.source_entity_id,
-                            payload_json={
-                                key: value
-                                for key, value in result.data.items()
-                                if key in fields
-                            },
+                            payload_json={key: value for key, value in result.data.items() if key in fields},
                             http_status=200,
                             retrieved_at=result.source_retrieved_at,
                         )
@@ -825,10 +785,8 @@ class ResearchService:
         if set(fields) & {"address", "office_count"} and calls < max_calls:
             calls += 1
             region = self.region_resolver.resolve(item.region or "")
-            request = MapSearchRequest(
-                keywords=item.source_name, region=region.name, adcode=region.adcode
-            )
-            result = await self._runtimes[run_id].execute(
+            request = MapSearchRequest(keywords=item.source_name, region=region.name, adcode=region.adcode)
+            result = await self._runtime(run_id).execute(
                 research_run_id=run_id,
                 task_id=run.task_id,
                 query_id=None,
@@ -857,7 +815,7 @@ class ResearchService:
         if "website" in fields and not item.website_candidate and calls < max_calls:
             calls += 1
             request = WebSearchRequest(query=f'"{item.source_name}" 官网', max_results=5)
-            result = await self._runtimes[run_id].execute(
+            result = await self._runtime(run_id).execute(
                 research_run_id=run_id,
                 task_id=run.task_id,
                 query_id=None,
@@ -891,7 +849,7 @@ class ResearchService:
         if "public_phone" in fields and item.website_candidate and calls < max_calls:
             calls += 1
             request = WebFetchRequest(url=item.website_candidate)
-            result = await self._runtimes[run_id].execute(
+            result = await self._runtime(run_id).execute(
                 research_run_id=run_id,
                 task_id=run.task_id,
                 query_id=None,
@@ -919,9 +877,7 @@ class ResearchService:
                 )
         return created
 
-    def discover(
-        self, *, region: str, criteria: LeadCriteria | None = None
-    ) -> tuple[str, list[Lead]]:
+    def discover(self, *, region: str, criteria: LeadCriteria | None = None) -> tuple[str, list[Lead]]:
         rows = getattr(self.providers.enterprise, "rows", [])
         leads = [
             Lead(
@@ -941,11 +897,7 @@ class ResearchService:
         ]
         if criteria:
             evaluator = DefaultCriteriaEvaluator()
-            leads = [
-                v
-                for v in leads
-                if evaluator.matches_hard_constraints(v.model_dump(), criteria)
-            ]
+            leads = [v for v in leads if evaluator.matches_hard_constraints(v.model_dump(), criteria)]
         set_id = str(uuid4())
         self._legacy_sets[set_id] = [item.model_copy(deep=True) for item in leads[:5]]
         return set_id, leads[:5]

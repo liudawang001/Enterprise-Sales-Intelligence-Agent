@@ -28,3 +28,17 @@ def test_chat_api_complete_request_and_business_qa() -> None:
     assert complete.json()["task_id"] != "api-complete"
     assert qa.json()["task_id"] is None
     assert "没有找到足够证据" in qa.json()["message"]
+
+
+def test_chat_rejects_new_execution_during_shutdown() -> None:
+    application = create_app()
+    with TestClient(application) as client:
+        application.state.accepting_work = False
+        response = client.post(
+            "/api/chat",
+            json={"session_id": "shutting-down", "message": "帮我找上海松江3家集团V网客户"},
+        )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "SERVICE_SHUTTING_DOWN"
+    assert response.headers["retry-after"] == "1"

@@ -114,6 +114,69 @@ async def test_postgres_completed_request_is_idempotent() -> None:
 
 
 @pytest.mark.asyncio
+async def test_postgres_duplicate_active_request_is_rejected() -> None:
+    engine = create_async_engine(database_url())
+    coordinator = PostgresExecutionCoordinator(async_sessionmaker(engine, expire_on_commit=False))
+    thread = str(uuid4())
+    request_id = f"{thread}-active"
+    await coordinator.claim(
+        request_id=request_id,
+        thread_id=thread,
+        workspace_id="integration",
+        user_id="user",
+        owner="worker-a",
+        lease_seconds=60,
+        trace_id=str(uuid4()),
+    )
+
+    with pytest.raises(RunAlreadyClaimedError):
+        await coordinator.claim(
+            request_id=request_id,
+            thread_id=thread,
+            workspace_id="integration",
+            user_id="user",
+            owner="worker-b",
+            lease_seconds=60,
+            trace_id=str(uuid4()),
+        )
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_postgres_expired_duplicate_request_reclaims_run_with_new_fence() -> None:
+    engine = create_async_engine(database_url())
+    coordinator = PostgresExecutionCoordinator(async_sessionmaker(engine, expire_on_commit=False))
+    thread = str(uuid4())
+    request_id = f"{thread}-expired"
+    first = await coordinator.claim(
+        request_id=request_id,
+        thread_id=thread,
+        workspace_id="integration",
+        user_id="user",
+        owner="worker-a",
+        lease_seconds=0,
+        trace_id=str(uuid4()),
+    )
+
+    reclaimed = await coordinator.claim(
+        request_id=request_id,
+        thread_id=thread,
+        workspace_id="integration",
+        user_id="user",
+        owner="worker-b",
+        lease_seconds=60,
+        trace_id=str(uuid4()),
+    )
+
+    assert reclaimed.run_id == first.run_id
+    assert reclaimed.fence_token > first.fence_token
+    assert reclaimed.lease_owner == "worker-b"
+    assert not await coordinator.heartbeat(first.run_id, first.fence_token, 60)
+    assert await coordinator.can_promote(reclaimed.run_id, reclaimed.fence_token)
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
 async def test_postgres_task_event_replay_after_cursor() -> None:
     engine = create_async_engine(database_url())
     session_factory = async_sessionmaker(engine, expire_on_commit=False)

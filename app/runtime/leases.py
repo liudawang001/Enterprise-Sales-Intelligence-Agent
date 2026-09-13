@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from app.runtime.models import ExecutionRun, ExecutionRunStatus, RunAlreadyClaimedError
 
 ACTIVE_STATUSES = {ExecutionRunStatus.CLAIMED, ExecutionRunStatus.RUNNING}
+RECLAIMABLE_STATUSES = ACTIVE_STATUSES | {ExecutionRunStatus.FAILED, ExecutionRunStatus.RECOVERABLE}
 
 
 class InMemoryExecutionCoordinator:
@@ -35,10 +36,8 @@ class InMemoryExecutionCoordinator:
         key = (workspace_id, thread_id)
         async with self._lock:
             prior_id = self._requests.get((workspace_id, request_id))
-            if prior_id:
-                prior = self._runs[prior_id]
-                if prior.status in ACTIVE_STATUSES:
-                    raise RunAlreadyClaimedError(thread_id)
+            prior = self._runs.get(prior_id or "")
+            if prior and prior.response_data is not None:
                 return deepcopy(prior)
             now = datetime.now(UTC)
             active_id = self._active.get(key)
@@ -53,6 +52,27 @@ class InMemoryExecutionCoordinator:
             if active and active.status in ACTIVE_STATUSES:
                 self._runs[active.run_id] = active.model_copy(update={"status": ExecutionRunStatus.RECOVERABLE})
             fence = self._fences.get(key, 0) + 1
+            if prior:
+                if prior.thread_id != thread_id or prior.status not in RECLAIMABLE_STATUSES:
+                    raise RunAlreadyClaimedError(thread_id)
+                reclaimed = prior.model_copy(
+                    update={
+                        "status": ExecutionRunStatus.RUNNING,
+                        "lease_owner": owner,
+                        "lease_expires_at": now + timedelta(seconds=lease_seconds),
+                        "heartbeat_at": now,
+                        "fence_token": fence,
+                        "trace_id": trace_id,
+                        "response_data": None,
+                        "error_code": None,
+                        "started_at": now,
+                        "finished_at": None,
+                    }
+                )
+                self._runs[prior.run_id] = reclaimed
+                self._active[key] = prior.run_id
+                self._fences[key] = fence
+                return deepcopy(reclaimed)
             run = ExecutionRun(
                 request_id=request_id,
                 thread_id=thread_id,
@@ -153,13 +173,19 @@ class PostgresExecutionCoordinator:
     ) -> ExecutionRun:
         async with self.session_factory() as session, session.begin():
             await session.execute(
+                text("SELECT pg_advisory_xact_lock(hashtext(:scope))"),
+                {"scope": f"{workspace_id}:request:{request_id}"},
+            )
+            await session.execute(
                 text("SELECT pg_advisory_xact_lock(hashtext(:scope))"), {"scope": f"{workspace_id}:{thread_id}"}
             )
             prior = (
                 (
                     await session.execute(
                         text(
-                            "SELECT * FROM execution_runs WHERE workspace_id=:workspace_id AND request_id=:request_id"
+                            """SELECT * FROM execution_runs
+                               WHERE workspace_id=:workspace_id AND request_id=:request_id
+                               FOR UPDATE"""
                         ),
                         {"workspace_id": workspace_id, "request_id": request_id},
                     )
@@ -167,7 +193,9 @@ class PostgresExecutionCoordinator:
                 .mappings()
                 .first()
             )
-            if prior:
+            if prior and prior["thread_id"] != thread_id:
+                raise RunAlreadyClaimedError(thread_id)
+            if prior and prior.get("response_json") is not None:
                 return self._from_row(prior)
             active = (
                 (
@@ -189,9 +217,42 @@ class PostgresExecutionCoordinator:
                 raise RunAlreadyClaimedError(thread_id)
             if active:
                 await session.execute(
-                    text("UPDATE execution_runs SET status='RECOVERABLE', lease_owner=NULL WHERE run_id=:run_id"),
+                    text(
+                        """UPDATE execution_runs
+                           SET status='RECOVERABLE', lease_owner=NULL, lease_expires_at=NULL
+                           WHERE run_id=:run_id"""
+                    ),
                     {"run_id": active["run_id"]},
                 )
+            if prior:
+                if ExecutionRunStatus(prior["status"]) not in RECLAIMABLE_STATUSES:
+                    raise RunAlreadyClaimedError(thread_id)
+                row = (
+                    (
+                        await session.execute(
+                            text(
+                                """UPDATE execution_runs
+                                   SET status='RUNNING', lease_owner=:owner,
+                                       lease_expires_at=:expires, heartbeat_at=:now,
+                                       fence_token=nextval(pg_get_serial_sequence('execution_runs', 'fence_token')),
+                                       trace_id=:trace_id, response_json=NULL, error_code=NULL,
+                                       started_at=:now, finished_at=NULL
+                                   WHERE run_id=:run_id
+                                   RETURNING *"""
+                            ),
+                            {
+                                "run_id": prior["run_id"],
+                                "owner": owner,
+                                "expires": now + timedelta(seconds=lease_seconds),
+                                "now": now,
+                                "trace_id": trace_id,
+                            },
+                        )
+                    )
+                    .mappings()
+                    .one()
+                )
+                return self._from_row(row)
             row = (
                 (
                     await session.execute(

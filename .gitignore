@@ -1,5 +1,6 @@
 # Local project documentation (do not publish by default)
 docs/*
+!docs/RECOVERY_REPORT_PHASE2.md
 !docs/PHASE_IMPLEMENTATION_AUDIT.md
 !docs/FINAL_ACCEPTANCE_REPORT.md
 !docs/RELEASE_NOTES_v1.0.0.md
