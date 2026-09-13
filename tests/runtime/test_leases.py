@@ -81,3 +81,58 @@ async def test_duplicate_completed_request_returns_original_response() -> None:
     )
     assert duplicate.run_id == run.run_id
     assert duplicate.response_data == {"status": "COMPLETED"}
+
+
+@pytest.mark.asyncio
+async def test_duplicate_active_request_is_rejected() -> None:
+    coordinator = InMemoryExecutionCoordinator()
+    await coordinator.claim(
+        request_id="same-active",
+        thread_id="thread",
+        workspace_id="workspace",
+        user_id="user",
+        owner="a",
+        lease_seconds=60,
+        trace_id="trace-a",
+    )
+
+    with pytest.raises(RunAlreadyClaimedError):
+        await coordinator.claim(
+            request_id="same-active",
+            thread_id="thread",
+            workspace_id="workspace",
+            user_id="user",
+            owner="b",
+            lease_seconds=60,
+            trace_id="trace-b",
+        )
+
+
+@pytest.mark.asyncio
+async def test_expired_duplicate_request_reclaims_run_with_new_fence() -> None:
+    coordinator = InMemoryExecutionCoordinator()
+    first = await coordinator.claim(
+        request_id="same-expired",
+        thread_id="thread",
+        workspace_id="workspace",
+        user_id="user",
+        owner="a",
+        lease_seconds=0,
+        trace_id="trace-a",
+    )
+
+    reclaimed = await coordinator.claim(
+        request_id="same-expired",
+        thread_id="thread",
+        workspace_id="workspace",
+        user_id="user",
+        owner="b",
+        lease_seconds=60,
+        trace_id="trace-b",
+    )
+
+    assert reclaimed.run_id == first.run_id
+    assert reclaimed.fence_token > first.fence_token
+    assert reclaimed.lease_owner == "b"
+    assert not await coordinator.heartbeat(first.run_id, first.fence_token, 60)
+    assert await coordinator.can_promote(reclaimed.run_id, reclaimed.fence_token)

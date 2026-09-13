@@ -25,6 +25,36 @@ from app.runtime.leases import InMemoryExecutionCoordinator, PostgresExecutionCo
 logger = logging.getLogger(__name__)
 
 
+async def close_application_resources(app, graph_runtime) -> None:
+    app.state.accepting_work = False
+    resources = [
+        ("checkpointer", graph_runtime.close if graph_runtime is not None else None),
+        ("langfuse", app.state.tracing.close),
+        ("redis", app.state.redis_manager.close),
+        (
+            "postgres_async",
+            app.state.database_engine.dispose if app.state.database_engine is not None else None,
+        ),
+    ]
+    for name, closer in resources:
+        if closer is None:
+            continue
+        try:
+            await closer()
+        except Exception:
+            logger.exception(
+                "RESOURCE_SHUTDOWN_FAILED", extra={"error_code": "RESOURCE_SHUTDOWN_FAILED", "resource": name}
+            )
+    if app.state.sync_database_engine is not None:
+        try:
+            app.state.sync_database_engine.dispose()
+        except Exception:
+            logger.exception(
+                "RESOURCE_SHUTDOWN_FAILED",
+                extra={"error_code": "RESOURCE_SHUTDOWN_FAILED", "resource": "postgres_sync"},
+            )
+
+
 def application_lifespan(settings):
     @asynccontextmanager
     async def lifespan(app):
@@ -109,14 +139,6 @@ def application_lifespan(settings):
             app.state.graph = await graph_runtime.start()
             yield
         finally:
-            app.state.accepting_work = False
-            await app.state.tracing.close()
-            await app.state.redis_manager.close()
-            if graph_runtime is not None:
-                await graph_runtime.close()
-            if app.state.database_engine is not None:
-                await app.state.database_engine.dispose()
-            if app.state.sync_database_engine is not None:
-                app.state.sync_database_engine.dispose()
+            await close_application_resources(app, graph_runtime)
 
     return lifespan

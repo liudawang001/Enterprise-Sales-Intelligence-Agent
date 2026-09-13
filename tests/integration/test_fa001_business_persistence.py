@@ -37,7 +37,7 @@ def settings(database_url: str, export_dir: str) -> Settings:
         database_url=database_url,
         checkpoint_database_url=database_url,
         graph_checkpointer="postgres",
-        redis_url="redis://127.0.0.1:6399/15",
+        redis_url=os.getenv("TEST_REDIS_URL", "redis://127.0.0.1:6399/15"),
         redis_socket_timeout_seconds=0.1,
         redis_socket_connect_timeout_seconds=0.1,
         export_dir=export_dir,
