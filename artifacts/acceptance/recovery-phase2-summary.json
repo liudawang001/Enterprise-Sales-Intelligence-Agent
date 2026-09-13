@@ -1,0 +1,134 @@
+{
+  "executed_at": "2026-09-13T16:34:10+08:00",
+  "branch": "release/v1.0.0",
+  "baseline_head": "4747044",
+  "fix_commit": "7d674b3",
+  "recovery_gate": "PASS",
+  "release_decision": "NO-GO",
+  "provider_mode": "deterministic_fake",
+  "results": {
+    "restart_resume": "PASS",
+    "clarification_restart": "PASS",
+    "graceful_shutdown": "PASS",
+    "backup_restore": "PASS",
+    "business_artifact_restore": "PASS",
+    "duplicate_side_effect": "NO"
+  },
+  "restart": {
+    "thread_id": "phase2-clarification-real",
+    "task_id": "155fd207-22f2-4a77-aa75-846b3b9164aa",
+    "initial_request_id": "phase2-clarification-initial",
+    "resume_request_id": "phase2-clarification-resume",
+    "task_version": 2,
+    "final_status": "COMPLETED",
+    "final_fence_token": 17,
+    "message_count": 2,
+    "clarification_event_count": 1,
+    "final_event_count": 1,
+    "side_effect_counts": {
+      "tasks": 1,
+      "task_versions": 2,
+      "criteria": 1,
+      "search_plans": 1,
+      "research_runs": 1,
+      "candidates": 10,
+      "source_records": 30,
+      "lead_scores": 5,
+      "delivery_snapshots": 1,
+      "exports": 1
+    }
+  },
+  "graceful_shutdown": {
+    "thread_id": "phase2-graceful-active",
+    "task_id": "1f7fc3e5-95b4-4da8-9893-614a21d906aa",
+    "signal": "SIGTERM",
+    "request_status": 200,
+    "observed_completion_seconds": 3.8,
+    "shutdown_complete_logged": true,
+    "sigkill_required": false
+  },
+  "backup_restore": {
+    "source_database": "phase2_recovery_source_20260913",
+    "restored_database": "phase2_recovery_restore_20260913",
+    "dump_format": "PostgreSQL custom",
+    "toc_entries": 258,
+    "restore_exit_on_error": true,
+    "source_counts": {
+      "lead_tasks": 8,
+      "lead_task_versions": 14,
+      "lead_criteria_snapshots": 6,
+      "research_search_plans": 6,
+      "enterprise_candidates": 35,
+      "research_source_records": 139,
+      "enterprise_evidence": 616,
+      "resolved_fields": 286,
+      "verified_enterprise_profiles": 22,
+      "lead_scores": 22,
+      "delivery_snapshots": 3,
+      "exports": 3,
+      "checkpoints": 516
+    },
+    "restored_counts": {
+      "lead_tasks": 8,
+      "lead_task_versions": 14,
+      "lead_criteria_snapshots": 6,
+      "research_search_plans": 6,
+      "enterprise_candidates": 35,
+      "research_source_records": 139,
+      "enterprise_evidence": 616,
+      "resolved_fields": 286,
+      "verified_enterprise_profiles": 22,
+      "lead_scores": 22,
+      "delivery_snapshots": 3,
+      "exports": 3,
+      "checkpoints": 516
+    },
+    "primary_key_digests_match": true,
+    "restored_api_statuses": {
+      "task": 200,
+      "leads": 200,
+      "evidence": 200,
+      "score_explain": 200,
+      "export_metadata": 200,
+      "export_download": 200
+    },
+    "representative_ids": {
+      "task_id": "155fd207-22f2-4a77-aa75-846b3b9164aa",
+      "lead_id": "2fc4dc50-e57c-458e-8831-3562e3a9117d",
+      "evidence_id": "6327550a-385d-443a-a488-630bfb387d23",
+      "score_id": "3413076d-e647-4971-91f6-3f86f4732c37",
+      "export_id": "08ad9413-4d09-4887-9c36-a2d5caa0839f"
+    },
+    "export": {
+      "file_size": 15480,
+      "sha256": "901b201acf3ca24e0a6e6c099f25a2318dc50d46741656195da0241188373a35"
+    },
+    "restored_waiting_task": {
+      "thread_id": "phase2-backup-waiting",
+      "task_id": "47d555d8-3071-44c2-acc4-9f104ba88993",
+      "task_version": 2,
+      "status": "COMPLETED",
+      "message_count": 2,
+      "idempotent_replay_semantic_hash_match": true
+    }
+  },
+  "fault_cases": {
+    "redis_down": "PASS",
+    "langfuse_down": "PASS",
+    "provider_503": "PASS_INJECTED",
+    "provider_timeout": "PASS_INJECTED",
+    "selected_tests": "7 passed"
+  },
+  "verification": {
+    "full_pytest": "173 passed, 19 skipped, 1 deselected",
+    "integration_recovery_fault": "24 passed, 1 skipped, 168 deselected",
+    "changed_files_ruff": "PASS",
+    "git_diff_check": "PASS",
+    "repository_ruff": "FAIL: 547 pre-existing findings"
+  },
+  "limitations": [
+    "Real external-provider credentials were not available; provider 503 and timeout results are injected fault tests.",
+    "The recovery gate passes, but this scoped result does not close unrelated mandatory release gates.",
+    "The recovery implementation and tests are committed as 7d674b3."
+  ]
+}
