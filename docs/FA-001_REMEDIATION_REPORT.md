@@ -98,8 +98,10 @@ also resumed and completed against the restored database.
 
 ## Git and remaining release blockers
 
-- Core commit `226dae5` was pushed to `origin/release/v1.0.0` without force.
-- The recovery/report follow-up commit and push are recorded in the final handoff after execution.
+- `226dae5` — `fix(persistence): persist production business state`
+- `fb76b02` — `fix(runtime): keep production dependencies type-safe`
+- `fc28aad` — `test(recovery): verify full artifact restoration`
+- All three commits were pushed to `origin/release/v1.0.0` without force.
 - FA-001 is resolved. This does not authorize `v1.0.0`: real external-provider E2E remains
   `NOT_RUN`, browser UI replay remains partial, and production-compose provider smoke remains
   `NOT_RUN`. The aggregate release decision therefore remains **NO-GO**.

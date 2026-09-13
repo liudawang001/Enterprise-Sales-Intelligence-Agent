@@ -54,7 +54,10 @@
   },
   "git": {
     "core_commit": "226dae5",
+    "runtime_commit": "fb76b02",
+    "recovery_report_commit": "fc28aad",
     "core_push": "EXECUTED",
+    "followup_push": "EXECUTED",
     "force_push": false
   },
   "remaining_release_blockers": [

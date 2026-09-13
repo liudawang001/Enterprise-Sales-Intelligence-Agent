@@ -99,7 +99,7 @@ The workspace initial page loaded with zero console errors and screenshot [initi
 
 ## Release and external-operation status
 
-- GitHub push: **EXECUTED**. FA-001 core commit `226dae5` was pushed to `origin/release/v1.0.0`; no force push was used.
+- GitHub push: **EXECUTED**. FA-001 commits `226dae5`, `fb76b02`, and `fc28aad` were pushed to `origin/release/v1.0.0`; no force push was used.
 - GitHub tag/release: **NOT_EXECUTED** because the decision is NO-GO and no release authority was available.
 - Real external provider smoke: **NOT_RUN**; credentials were not supplied.
 - Production Docker image build/smoke: **NOT_RUN**; Docker API access was denied in this session.
