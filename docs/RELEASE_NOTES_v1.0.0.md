@@ -11,12 +11,15 @@ The v1.0 acceptance audit produced real evaluation, E2E, security, recovery and 
 - Region/business mutation classification, enterprise-id exports and enrichment handling.
 - Redis bounded failure waits, workspace intelligence scoping and security regression coverage.
 - Recovery/performance acceptance artifacts and runbooks.
+- FA-001 durable PostgreSQL repositories for the full production business artifact graph.
+- Cross-process clarification resume, full-artifact backup/restore, restored export download, and
+  graceful SIGTERM recovery validation.
 
 ### Blocking findings
 
-- FA-001: the main production graph still uses in-memory business repositories; full artifact recovery fails.
-- Restart/resume completes runtime checkpoint progression but not the full business flow; graceful shutdown exceeds the acceptance budget.
+- Real external-provider E2E has not been executed with authorized credentials.
+- Full browser UI replay remains partial.
 - Production compose image/provider smoke was not executed in this environment.
 
-No version bump, tag, GitHub push or release was performed.
-
+The release branch was pushed. No version bump, tag, or GitHub release was performed because the
+aggregate acceptance decision remains NO-GO.

@@ -44,6 +44,35 @@ def settings(database_url: str, export_dir: str) -> Settings:
     )
 
 
+def test_postgres_runtime_fails_startup_instead_of_falling_back_to_memory(tmp_path) -> None:
+    unavailable = "postgresql+asyncpg://sales_app:unreachable@127.0.0.1:1/unreachable"
+    config = Settings(
+        app_env="production",
+        database_url=unavailable,
+        checkpoint_database_url=unavailable,
+        graph_checkpointer="postgres",
+        database_pool_timeout=0.1,
+        auth_mode="jwt",
+        auth_issuer="https://identity.example.com",
+        auth_audience="sales-agent",
+        auth_jwks_url="https://identity.example.com/.well-known/jwks.json",
+        enterprise_provider="commercial",
+        enterprise_api_base_url="https://enterprise.example.com",
+        enterprise_api_key="configured-enterprise-key",
+        map_provider="amap",
+        amap_api_key="configured-amap-key",
+        web_search_provider="tavily",
+        tavily_api_key="configured-tavily-key",
+        web_fetch_provider="firecrawl",
+        firecrawl_api_key="configured-firecrawl-key",
+        export_dir=str(tmp_path / "exports"),
+    )
+
+    with pytest.raises(OSError):
+        with TestClient(create_app(config)):
+            pytest.fail("application unexpectedly started with an unavailable PostgreSQL database")
+
+
 def test_full_business_state_survives_fresh_application(tmp_path) -> None:
     config = settings(database_url(), str(tmp_path / "exports"))
     session_id = f"fa001-{uuid4()}"

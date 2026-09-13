@@ -13,5 +13,13 @@ Use a custom-format `pg_dump`, record the source commit and Alembic head, restor
 
 ## Current acceptance result
 
-Backup/restore mechanics passed: the restored database reached Alembic head and preserved task/version/checkpoint rows. The full business artifact restore gate failed because evidence, scores and exports were not persisted by the main production graph. A restart also resumed the checkpoint but did not complete the business flow within the acceptance timeout; graceful SIGTERM exceeded the 30-second budget and required forced termination. Do not treat this build as production recoverable.
+FA-001 recovery acceptance passed on 2026-09-13. The restored database reached Alembic head
+`0009_fa001_durable_business_state`; source and untouched-restore counts matched for tasks,
+versions, candidates, source records, evidence, resolved fields, profiles, scores, delivery
+snapshots, exports, and checkpoints. A fresh application read all key artifacts and downloaded a
+restored XLSX. A clarification-interrupted task resumed after both application restart and database
+restore. Uvicorn completed SIGTERM shutdown without SIGKILL and within the 30-second budget.
 
+Database backup is not sufficient for local export storage: back up and restore the configured
+export volume at the same consistency point. S3 deployments must retain the `exports/{export_id}/`
+objects together with the database metadata.
