@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from app.config import get_settings
+from app.config import Settings, get_settings
 from app.entities.service import EntityResolutionService
 from app.evidence.models import VerificationBudget
 from app.evidence.service import EvidenceVerificationService
@@ -18,13 +18,13 @@ from app.repositories.export_repository import InMemoryExportRepository
 from app.repositories.lead_score_repository import InMemoryLeadScoreRepository
 from app.repositories.mock_task_repository import MockTaskRepository
 from app.rules.service import BusinessRuleService
+from app.runtime.leases import InMemoryExecutionCoordinator
 from app.scoring.profiles import demo_scoring_profiles
 from app.services.business_service import MockBusinessService
 from app.services.research_service import ResearchService
 from app.services.scoring_service import LeadScoringService, MockScoringService
 from app.services.task_service import TaskService
 from app.tasks.references import TaskReferenceResolver
-from app.runtime.leases import InMemoryExecutionCoordinator
 
 
 @dataclass
@@ -55,12 +55,12 @@ class AgentDependencies:
     execution_coordinator: object | None = None
 
 
-def build_dependencies() -> AgentDependencies:
-    settings = get_settings()
+def build_dependencies(settings: Settings | None = None) -> AgentDependencies:
+    settings = settings or get_settings()
     repository = MockTaskRepository()
     rule_service = BusinessRuleService()
     rule_service.seed_demo_rules()
-    research_service = ResearchService()
+    research_service = ResearchService(settings=settings)
     enterprise_repository = InMemoryEnterpriseRepository(research_service.repository)
     evidence_repository = InMemoryEvidenceRepository()
     lead_score_repository = InMemoryLeadScoreRepository()
@@ -68,9 +68,7 @@ def build_dependencies() -> AgentDependencies:
     execution_snapshot_repository = InMemoryExecutionSnapshotRepository()
     for profile in demo_scoring_profiles():
         lead_score_repository.save_profile(profile)
-    verification_service = EvidenceVerificationService(
-        evidence_repository, enterprise_repository
-    )
+    verification_service = EvidenceVerificationService(evidence_repository, enterprise_repository)
     verification_budget = VerificationBudget(
         max_extra_tool_calls=settings.verification_max_extra_calls,
         max_calls_per_entity=settings.verification_max_calls_per_entity,
@@ -79,11 +77,7 @@ def build_dependencies() -> AgentDependencies:
 
     async def targeted_provider(enterprise_id: str, fields: list[str]):
         link = next(
-            (
-                value
-                for value in enterprise_repository.candidate_links.values()
-                if value.enterprise_id == enterprise_id
-            ),
+            (value for value in enterprise_repository.candidate_links.values() if value.enterprise_id == enterprise_id),
             None,
         )
         if not link:
@@ -96,14 +90,13 @@ def build_dependencies() -> AgentDependencies:
         )
         result = []
         for source in sources:
-            for evidence in verification_service.extractor.extract(
-                enterprise_id, source, candidate
-            ):
+            for evidence in verification_service.extractor.extract(enterprise_id, source, candidate):
                 evidence.normalized_value = verification_service.normalizer.normalize(
                     evidence.field_name, evidence.value
                 )
                 result.append(evidence)
         return result
+
     deps = AgentDependencies(
         task_repository=repository,
         task_service=TaskService(repository),
@@ -116,7 +109,12 @@ def build_dependencies() -> AgentDependencies:
         lead_score_repository=lead_score_repository,
         entity_resolution_service=EntityResolutionService(enterprise_repository),
         verification_service=verification_service,
-        lead_scoring_service=LeadScoringService(lead_score_repository, evidence_repository, enterprise_repository, rule_service.repository),
+        lead_scoring_service=LeadScoringService(
+            lead_score_repository,
+            evidence_repository,
+            enterprise_repository,
+            rule_service.repository,
+        ),
         targeted_verification_service=TargetedVerificationService(
             evidence_repository,
             targeted_provider,
@@ -136,16 +134,21 @@ def build_dependencies() -> AgentDependencies:
     )
     from app.delivery.queries import DeliveryQueryService
 
-    deps.delivery_query_service = DeliveryQueryService(
-        deps, deps.delivery_snapshot_repository
-    )
+    deps.delivery_query_service = DeliveryQueryService(deps, deps.delivery_snapshot_repository)
     from app.exports.service import ExportService
     from app.exports.storage import LocalExportStorage, S3CompatibleExportStorage
 
     deps.export_repository = InMemoryExportRepository()
     storage = LocalExportStorage(settings.export_dir)
     if settings.export_storage_backend == "s3":
-        storage = S3CompatibleExportStorage(bucket=settings.s3_bucket, endpoint_url=settings.s3_endpoint_url, region=settings.s3_region, access_key_id=settings.s3_access_key_id, secret_access_key=settings.s3_secret_access_key.get_secret_value(), signed_url_ttl_seconds=settings.export_signed_url_ttl_seconds)
+        storage = S3CompatibleExportStorage(
+            bucket=settings.s3_bucket,
+            endpoint_url=settings.s3_endpoint_url,
+            region=settings.s3_region,
+            access_key_id=settings.s3_access_key_id,
+            secret_access_key=settings.s3_secret_access_key.get_secret_value(),
+            signed_url_ttl_seconds=settings.export_signed_url_ttl_seconds,
+        )
     deps.export_service = ExportService(
         deps.delivery_query_service,
         deps.export_repository,

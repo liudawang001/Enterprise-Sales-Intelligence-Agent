@@ -1,0 +1,84 @@
+{
+  "executed_at": "2026-09-12T23:48:00+08:00",
+  "source_commit": "d7ae834+working-tree",
+  "status": "FAIL",
+  "environment": {
+    "api": "uvicorn on 127.0.0.1:8011",
+    "postgres": "pgvector/pgvector:pg16 on 127.0.0.1:5433",
+    "redis": "redis:7.4-alpine on 127.0.0.1:6380",
+    "providers": "deterministic_fake"
+  },
+  "checks": [
+    {
+      "name": "fault test suite",
+      "status": "PASS",
+      "evidence": "pytest -q tests/runtime/test_redis_manager.py tests/faults: 6 passed"
+    },
+    {
+      "name": "integration recovery markers",
+      "status": "PASS",
+      "evidence": "pytest -q -m recovery: 1 passed; pytest -q -m fault after added cases: 5 passed"
+    },
+    {
+      "name": "provider HTTP 429 retry",
+      "status": "PASS",
+      "evidence": "Two retries followed by success; retry_count=2"
+    },
+    {
+      "name": "provider timeout and circuit breaker",
+      "status": "PASS",
+      "evidence": "Timeout is bounded; circuit opens at configured threshold and blocks the next call"
+    },
+    {
+      "name": "Langfuse failure isolation",
+      "status": "PASS",
+      "evidence": "Broken observation context does not break /api/chat"
+    },
+    {
+      "name": "Redis down degradation",
+      "status": "PASS",
+      "evidence": "/health/dependencies changed Redis from UP to DEGRADED and grounded QA still returned HTTP 200 while the acceptance Redis container was stopped"
+    },
+    {
+      "name": "Redis operation timeout hardening",
+      "status": "PASS",
+      "evidence": "Redis connect/read operations now have configurable two-second defaults and a regression test"
+    },
+    {
+      "name": "process kill and clarification checkpoint recovery",
+      "status": "PARTIAL",
+      "evidence": "After SIGKILL and restart, the same task_id b4bdfa4a-5426-4775-894b-6810fbb5a0d7 resumed and advanced to version 2 / LangGraph step 5"
+    },
+    {
+      "name": "process restart full completion",
+      "status": "FAIL",
+      "evidence": "The resumed 3-lead request produced no response within 30 seconds and remained RUNNING; the earlier attempt exceeded two minutes. Latest checkpoint stopped at LangGraph step 5 after Phase 3 planning. Redis socket timeout hardening did not resolve this business-flow stall."
+    },
+    {
+      "name": "graceful SIGTERM with in-flight request",
+      "status": "FAIL",
+      "evidence": "Uvicorn remained at 'Waiting for background tasks to complete' beyond the configured 30-second grace period and required SIGKILL"
+    },
+    {
+      "name": "PostgreSQL backup and restore mechanics",
+      "status": "PASS",
+      "evidence": "Custom-format pg_dump restored cleanly into a separate database at Alembic 0008; lead_tasks=3, lead_task_versions=4 and checkpoints=59 matched the source"
+    },
+    {
+      "name": "full business artifact restore",
+      "status": "FAIL",
+      "evidence": "Source and restored database both had enterprise_evidence=0, lead_scores=0 and exports=0 after completed Golden flows because the production graph still uses in-memory Phase 2-7 repositories (FA-001)"
+    },
+    {
+      "name": "external provider smoke",
+      "status": "NOT_RUN",
+      "evidence": "Commercial provider credentials were not available; no external operation was claimed"
+    }
+  ],
+  "cleanup": {
+    "redis_restored": true,
+    "temporary_restore_database_removed": true,
+    "acceptance_api_processes_removed": true
+  },
+  "release_impact": "Mandatory restart/resume, graceful shutdown and full backup/restore gates are not satisfied; release decision cannot be GO."
+}

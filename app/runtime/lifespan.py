@@ -24,7 +24,12 @@ def application_lifespan(settings):
     async def lifespan(app):
         app.state.accepting_work = True
         app.state.dependency_status = {}
-        app.state.redis_manager = RedisManager(settings.redis_url, max_connections=settings.redis_max_connections)
+        app.state.redis_manager = RedisManager(
+            settings.redis_url,
+            max_connections=settings.redis_max_connections,
+            socket_timeout=settings.redis_socket_timeout_seconds,
+            socket_connect_timeout=settings.redis_socket_connect_timeout_seconds,
+        )
         app.state.tracing = LangfuseTracing(settings)
         app.state.database_engine = None
         graph_runtime = GraphRuntime(app.state.dependencies, settings)

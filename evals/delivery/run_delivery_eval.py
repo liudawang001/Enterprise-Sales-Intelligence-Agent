@@ -125,7 +125,7 @@ def _snapshot_cases(deps, bundle) -> tuple[int, int]:
         reread_lead.verification_status,
         tuple(item.evidence_id for item in reread_detail.evidence),
     ]
-    return len(before), sum(left == right for left, right in zip(before, after))
+    return len(before), sum(left == right for left, right in zip(before, after, strict=True))
 
 
 def _export_field_cases(bundle) -> tuple[int, int]:
@@ -158,8 +158,7 @@ def _export_field_cases(bundle) -> tuple[int, int]:
         values = [sheet.cell(2, column).value for column in range(1, len(fields) + 1)]
         expected = [_cell_value(getattr(bundle.leads[0], item.source_path)) for item in fields]
         correct += headers == [item.display_name for item in fields] and all(
-            _cell_matches(actual, wanted)
-            for actual, wanted in zip(values, expected)
+            _cell_matches(actual, wanted) for actual, wanted in zip(values, expected, strict=True)
         )
     return len(cases), correct
 
@@ -174,9 +173,11 @@ def _evidence_cases(bundle) -> tuple[int, int]:
     correct = 0
     for detail, resolved, evidence in cases:
         field = resolved.get(evidence.field_name)
-        linked_ids = set(field.get("supporting_evidence_ids", [])) | set(
-            field.get("conflicting_evidence_ids", [])
-        ) if field else set()
+        linked_ids = (
+            set(field.get("supporting_evidence_ids", [])) | set(field.get("conflicting_evidence_ids", []))
+            if field
+            else set()
+        )
         correct += bool(
             field
             and evidence.evidence_id in linked_ids
@@ -184,10 +185,7 @@ def _evidence_cases(bundle) -> tuple[int, int]:
             and evidence.provider
             and evidence.source_type
             and evidence.retrieved_at
-            and (
-                evidence.source_url is None
-                or safe_http_url(evidence.source_url) == evidence.source_url
-            )
+            and (evidence.source_url is None or safe_http_url(evidence.source_url) == evidence.source_url)
             and detail.lead.field_statuses.get(evidence.field_name) == field["status"]
         )
     return len(cases), correct
@@ -210,20 +208,10 @@ def _historical_cases(deps, task, bundle) -> tuple[int, int]:
         historical.snapshot.lead_score_set_id == old_snapshot.lead_score_set_id,
         historical.snapshot.result_count == old_snapshot.result_count,
         [item.rank for item in historical.leads] == [item.rank for item in old_leads],
-        [item.lead_score for item in historical.leads]
-        == [item.lead_score for item in old_leads],
-        [item.verification_status for item in historical.leads]
-        == [item.verification_status for item in old_leads],
-        [
-            item.evidence_id
-            for detail in historical.details.values()
-            for item in detail.evidence
-        ]
-        == [
-            item.evidence_id
-            for detail in bundle.details.values()
-            for item in detail.evidence
-        ],
+        [item.lead_score for item in historical.leads] == [item.lead_score for item in old_leads],
+        [item.verification_status for item in historical.leads] == [item.verification_status for item in old_leads],
+        [item.evidence_id for detail in historical.details.values() for item in detail.evidence]
+        == [item.evidence_id for detail in bundle.details.values() for item in detail.evidence],
     ]
     return len(checks), sum(checks)
 
@@ -238,10 +226,7 @@ def _security_cases() -> tuple[int, int, int, int]:
     for value in filenames:
         cleaned = sanitize_filename(value)
         filename_correct += bool(
-            "/" not in cleaned
-            and "\\" not in cleaned
-            and ".." not in cleaned
-            and cleaned.endswith(".xlsx")
+            "/" not in cleaned and "\\" not in cleaned and ".." not in cleaned and cleaned.endswith(".xlsx")
         )
     return len(formulas) + len(unsafe_urls) + len(filenames), formula_correct, url_correct, filename_correct
 
@@ -253,6 +238,7 @@ def _ui_excel_consistency(deps, task, bundle) -> tuple[int, int, float, float, f
         snapshot_id=bundle.snapshot.snapshot_id,
         fields=[
             "rank",
+            "enterprise_id",
             "enterprise_name",
             "lead_score",
             "verification_status",
@@ -293,8 +279,8 @@ def run_evaluation() -> DeliveryEvalReport:
     snapshot_count, snapshot_correct = _snapshot_cases(deps, bundle)
     field_count, field_correct = _export_field_cases(bundle)
     evidence_count, evidence_correct = _evidence_cases(bundle)
-    consistency_count, consistency_correct, idempotency, parse_success, allowlist = (
-        _ui_excel_consistency(deps, task, bundle)
+    consistency_count, consistency_correct, idempotency, parse_success, allowlist = _ui_excel_consistency(
+        deps, task, bundle
     )
     historical_count, historical_correct = _historical_cases(deps, task, bundle)
     security_count, formula_correct, url_correct, filename_correct = _security_cases()

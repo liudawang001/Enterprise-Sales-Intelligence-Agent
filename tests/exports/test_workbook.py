@@ -64,7 +64,13 @@ def test_workbook_structure_types_and_ui_projection_are_identical():
             task_id=task.task_id,
             task_version=task.version,
             snapshot_id=bundle.snapshot.snapshot_id,
-            fields=["rank", "enterprise_name", "lead_score", "verification_status"],
+            fields=[
+                "rank",
+                "enterprise_id",
+                "enterprise_name",
+                "lead_score",
+                "verification_status",
+            ],
         )
     )
 
@@ -75,15 +81,18 @@ def test_workbook_structure_types_and_ui_projection_are_identical():
     assert leads.auto_filter.ref == leads.dimensions
     assert leads.max_row == job.row_count + 1
     assert isinstance(leads["A2"].value, int)
-    assert isinstance(leads["C2"].value, float)
-    assert [leads.cell(2, column).value for column in range(1, 5)] == [
+    assert isinstance(leads["D2"].value, float)
+    assert [leads.cell(2, column).value for column in range(1, 6)] == [
         bundle.leads[0].rank,
+        bundle.leads[0].enterprise_id,
         bundle.leads[0].enterprise_name,
         bundle.leads[0].lead_score,
         bundle.leads[0].verification_status,
     ]
     task_sheet = workbook["任务信息"]
-    metadata = {task_sheet.cell(row, 1).value: task_sheet.cell(row, 2).value for row in range(2, task_sheet.max_row + 1)}
+    metadata = {
+        task_sheet.cell(row, 1).value: task_sheet.cell(row, 2).value for row in range(2, task_sheet.max_row + 1)
+    }
     assert metadata["task_version"] == task.version
     assert metadata["delivery_snapshot_id"] == bundle.snapshot.snapshot_id
 
@@ -118,7 +127,10 @@ def test_export_is_idempotent_and_bound_to_frozen_historical_snapshot():
 
     assert first.export_id == second.export_id
     workbook = load_workbook(first.artifact_path)
-    metadata = {workbook["任务信息"].cell(row, 1).value: workbook["任务信息"].cell(row, 2).value for row in range(2, workbook["任务信息"].max_row + 1)}
+    metadata = {
+        workbook["任务信息"].cell(row, 1).value: workbook["任务信息"].cell(row, 2).value
+        for row in range(2, workbook["任务信息"].max_row + 1)
+    }
     assert metadata["task_version"] == bundle.snapshot.task_version == 5
     assert workbook["潜客清单"].max_row == len(bundle.leads) + 1
 
@@ -140,12 +152,8 @@ def test_formula_injection_is_written_as_text_and_unsafe_url_is_not_linked():
         if profile.enterprise_id != enterprise_id or not profile.field("website"):
             continue
         fields = dict(profile.fields)
-        fields["website"] = fields["website"].model_copy(
-            update={"primary_value": "javascript:alert(1)"}
-        )
-        deps.evidence_repository.profiles[profile_id] = profile.model_copy(
-            update={"fields": fields}
-        )
+        fields["website"] = fields["website"].model_copy(update={"primary_value": "javascript:alert(1)"})
+        deps.evidence_repository.profiles[profile_id] = profile.model_copy(update={"fields": fields})
     bundle = deps.delivery_query_service.freeze(task.task_id, task.version, force_new=True)
     job = deps.export_service.create_export(
         CreateExportRequest(

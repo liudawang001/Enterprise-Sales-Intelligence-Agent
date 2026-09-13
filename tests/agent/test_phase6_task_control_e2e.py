@@ -80,3 +80,26 @@ def test_noop_mutation_records_event_without_new_task_version():
     assert len(deps.task_repository.list_versions(task.task_id)) == version_count
     assert len(deps.execution_snapshot_repository.list_for_task(task.task_id)) == snapshot_count
     assert result["mutation_id"] in deps.mutation_repository.mutations
+
+
+def test_missing_website_requires_targeted_enrichment():
+    deps = build_dependencies()
+    graph = build_main_graph(deps)
+    _invoke(graph, "missing-website", "帮我找上海松江3家集团V网企业")
+
+    for profile_id, profile in list(deps.evidence_repository.profiles.items()):
+        fields = dict(profile.fields)
+        website = fields.get("website")
+        if website:
+            fields["website"] = website.model_copy(update={"primary_value": None})
+            deps.evidence_repository.profiles[profile_id] = profile.model_copy(update={"fields": fields})
+
+    task = deps.task_repository.get_active_task("missing-website")
+    reuse = deps.mutation_service.reuse_analyzer.analyze(task.task_id, task.version)
+    assert "website" not in reuse.available_verified_fields
+    tool_runs = len(deps.research_service.repository.tool_runs)
+
+    result = _invoke(graph, "missing-website", "再补官网")
+
+    assert result["mutation_scope"] == "ENRICHMENT_REQUIRED"
+    assert len(deps.research_service.repository.tool_runs) > tool_runs

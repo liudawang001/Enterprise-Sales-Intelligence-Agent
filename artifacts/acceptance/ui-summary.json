@@ -1,0 +1,11 @@
+{
+  "status": "PARTIAL",
+  "browser": "agent-browser",
+  "base_url": "http://127.0.0.1:5173/workspace",
+  "initial_page": "PASS",
+  "initial_screenshot": "artifacts/acceptance/ui/screenshots/initial.png",
+  "initial_console_errors": 0,
+  "submitted_request": "帮我找上海松江3家适合集团V网的企业，制造业优先",
+  "follow_up_status": "NOT_RUN",
+  "limitation": "Browser follow-up was blocked by the agent-browser account usage limit; no result was inferred."
+}

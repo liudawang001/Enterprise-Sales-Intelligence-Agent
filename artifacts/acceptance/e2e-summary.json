@@ -1,0 +1,124 @@
+{
+  "executed_at": "2026-09-12T23:29:00+08:00",
+  "status": "PARTIAL",
+  "provider_mode": "deterministic_fake",
+  "pytest_selection": {
+    "status": "PASS",
+    "passed": 32,
+    "failed": 0,
+    "notes": "30 Phase 1-7 agent/API/delivery/export E2E tests plus 2 grounded-RAG/rule-conflict E2E tests passed."
+  },
+  "golden_flow_ids": {
+    "source_commit": "71fbfb4",
+    "thread_id": "acceptance-golden-v1",
+    "task_id": "1d78914d-648b-41a5-8d39-327b4c948cec",
+    "task_version": 2,
+    "criteria_snapshot_id": "3e7ec3ab-9fec-4715-9b07-360476d2070c",
+    "research_run_id": "afa3cc81-6c2d-4324-afd3-0fe6387c2a5f",
+    "verified_lead_set_id": "e7394ff8-7c4c-4d03-8b57-83455e582594",
+    "lead_score_set_id": "e7394ff8-7c4c-4d03-8b57-83455e582594",
+    "delivery_snapshot_id": "d331bb4b-5cbf-4f7c-8635-d0e7b6eb8534",
+    "export_id": "eea0490b-fbcc-4f4e-b4a7-b5b6cf67a7bd",
+    "trace_id": "a82292a4-9e00-4111-9a92-00b97e624541",
+    "lead_count": 3,
+    "source_record_count": 13,
+    "ui_excel_rows_compared": 3,
+    "ui_excel_fields_compared": [
+      "rank",
+      "enterprise_id",
+      "enterprise_name",
+      "lead_score",
+      "verification_status"
+    ]
+  },
+  "scenarios": [
+    {
+      "id": 1,
+      "name": "Complete GROUP_VNET flow through XLSX",
+      "status": "PASS",
+      "evidence": "Golden flow IDs and 3x5 UI/XLSX comparison above"
+    },
+    {
+      "id": 2,
+      "name": "Clarification interrupt/resume in one process",
+      "status": "PASS",
+      "evidence": "tests/agent/test_interrupt_resume.py and tests/api/test_chat.py"
+    },
+    {
+      "id": 3,
+      "name": "Business QA through grounded RAG with citation",
+      "status": "PASS",
+      "evidence": "tests/test_phase2_e2e.py"
+    },
+    {
+      "id": 4,
+      "name": "Official/user rule conflict interrupt",
+      "status": "PASS",
+      "evidence": "tests/agent/test_phase3_conflict_e2e.py"
+    },
+    {
+      "id": 5,
+      "name": "Remove manufacturing preference",
+      "status": "PASS",
+      "scope": "RANK_ONLY",
+      "before": {"provider_tool_runs": 20, "evidence_records": 84, "score_records": 3},
+      "after": {"provider_tool_runs": 20, "evidence_records": 84, "score_records": 6}
+    },
+    {
+      "id": 6,
+      "name": "Top 50 to Top 30",
+      "status": "PASS",
+      "scope": "DISPLAY_ONLY",
+      "before": {"provider_tool_runs": 20, "evidence_records": 138, "score_records": 5},
+      "after": {"provider_tool_runs": 20, "evidence_records": 138, "score_records": 5}
+    },
+    {
+      "id": 7,
+      "name": "Request website when verified website values are missing",
+      "status": "PASS",
+      "scope": "ENRICHMENT_REQUIRED",
+      "before": {"provider_tool_runs": 20, "evidence_records": 86, "score_records": 3},
+      "after": {"provider_tool_runs": 23, "evidence_records": 86, "score_records": 6}
+    },
+    {
+      "id": 8,
+      "name": "Region change from Songjiang to Pudong",
+      "status": "PASS",
+      "scope": "DISCOVERY_REQUIRED",
+      "before": {"provider_tool_runs": 20},
+      "after": {"provider_tool_runs": 29}
+    },
+    {
+      "id": 9,
+      "name": "Business change to enterprise dedicated line",
+      "status": "PASS",
+      "scope": "FULL_REPLAN",
+      "before": {"provider_tool_runs": 20, "score_records": 3},
+      "after": {"provider_tool_runs": 26, "score_records": 9}
+    },
+    {
+      "id": 10,
+      "name": "Explain third lead without research",
+      "status": "PASS",
+      "before": {"provider_tool_runs": 20, "evidence_records": 86, "score_records": 3},
+      "after": {"provider_tool_runs": 20, "evidence_records": 86, "score_records": 3}
+    },
+    {
+      "id": 11,
+      "name": "Historical frozen export",
+      "status": "PASS",
+      "evidence": "tests/exports/test_workbook.py::test_export_is_idempotent_and_bound_to_frozen_historical_snapshot"
+    },
+    {
+      "id": 12,
+      "name": "Production application restart/resume",
+      "status": "PARTIAL",
+      "evidence": "Standalone PostgreSQL checkpointer recovery test passed; the production main graph still uses non-durable Phase 2-7 repositories (FA-001)."
+    }
+  ],
+  "limitations": [
+    "The golden business flow used deterministic fake providers and synthetic data.",
+    "External provider smoke was NOT_RUN because provider credentials were unavailable.",
+    "Production restart/resume remains blocked by FA-001 and is not reported as PASS."
+  ]
+}

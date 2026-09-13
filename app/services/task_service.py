@@ -43,7 +43,7 @@ class TaskService:
             return TaskPatch(business="企业专线")
         if "集团V网" in text and re.search(r"改成|换成|改为", text):
             return TaskPatch(business="集团V网")
-        region = re.search(r"(?:改到|改为|必须在|换到)(上海)?(松江|浦东)", text)
+        region = re.search(r"(?:改到|改成|改为|必须在|换到)(上海)?(松江|浦东)", text)
         if region:
             return TaskPatch(region=f"上海{region.group(2)}")
         if re.search(r"(?:不|不要|不再)限制(?:制造业|行业)", text):

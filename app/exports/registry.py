@@ -18,6 +18,7 @@ class ExportFieldRegistry:
     def __init__(self) -> None:
         values = [
             ("rank", "排名", "rank", "INTEGER"),
+            ("enterprise_id", "企业 ID", "enterprise_id", "TEXT"),
             ("enterprise_name", "企业名称", "enterprise_name", "TEXT"),
             ("parent_enterprise", "上级集团 / 母公司", "parent_enterprise", "TEXT"),
             ("industry", "行业", "industry", "TEXT"),
