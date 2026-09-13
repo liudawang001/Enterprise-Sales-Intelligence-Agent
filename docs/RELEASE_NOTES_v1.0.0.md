@@ -19,7 +19,7 @@ The v1.0 acceptance audit produced real evaluation, E2E, security, recovery and 
 
 - Real external-provider E2E has not been executed with authorized credentials.
 - Full browser UI replay remains partial.
-- Production compose image/provider smoke was not executed in this environment.
+- API/frontend image builds passed in CI; production-compose service/provider smoke remains unexecuted.
 
 The release branch was pushed. No version bump, tag, or GitHub release was performed because the
 aggregate acceptance decision remains NO-GO.

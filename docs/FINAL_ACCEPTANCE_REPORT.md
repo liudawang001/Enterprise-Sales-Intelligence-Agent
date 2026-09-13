@@ -12,7 +12,7 @@ The repository was audited in the order required by the acceptance task book. De
 - **FA-001 RESOLVED:** production now injects PostgreSQL-backed repositories for the complete business artifact graph. Fresh-application persistence and clarification restart/resume tests passed.
 - A real Uvicorn process completed a three-lead request and then handled SIGTERM without SIGKILL, logging complete application shutdown under the 30-second budget.
 - Custom-format dump/restore preserved all required business rows; a fresh restored application read historical task/lead/evidence/score/export data, downloaded the XLSX, and resumed a task that was interrupted in the backup.
-- Production compose image build/provider smoke and real external-provider quality were not executed in this environment. The browser replay was only partial because the agent-browser account hit its usage limit.
+- API/frontend image builds passed in GitHub Actions. Production-compose service/provider smoke and real external-provider quality were not executed. The browser replay was only partial because the agent-browser account hit its usage limit.
 
 Because the task book requires all 18 Mandatory Release Gates to be PASS, this audit cannot authorize a tag, GitHub release, or production rollout.
 
@@ -37,7 +37,7 @@ The baseline audit is recorded in [PHASE_IMPLEMENTATION_AUDIT.md](PHASE_IMPLEMEN
 | FA-001 persistence/recovery | Cross-instance graph, restart, SIGTERM, dump/restore, restored APIs | **PASS** |
 | Security | JWT/RBAC/isolation/SSRF/injection/redaction | **28 passed** |
 | External providers | Real provider smoke | **NOT_RUN** |
-| Production compose | Rendered config | **PASS**; image build/smoke **NOT_RUN** |
+| Production compose | Rendered config and CI image builds | **PASS**; service/provider smoke **NOT_RUN** |
 
 Evidence files: [fa001-remediation-summary.json](../artifacts/acceptance/fa001-remediation-summary.json), [evaluation-summary.json](../artifacts/acceptance/evaluation-summary.json), [e2e-summary.json](../artifacts/acceptance/e2e-summary.json), [recovery-summary.json](../artifacts/acceptance/recovery-summary.json), [security-summary.json](../artifacts/acceptance/security-summary.json), [performance-summary.json](../artifacts/acceptance/performance-summary.json).
 
@@ -99,7 +99,8 @@ The workspace initial page loaded with zero console errors and screenshot [initi
 
 ## Release and external-operation status
 
-- GitHub push: **EXECUTED**. FA-001 commits `226dae5`, `fb76b02`, and `fc28aad` were pushed to `origin/release/v1.0.0`; no force push was used.
+- GitHub push: **EXECUTED**. FA-001 implementation, recovery, report, and CI fixes through `7a64a10` were pushed to `origin/release/v1.0.0`; no force push was used.
+- Pull request: **OPEN**. PR #6 targets `main`; backend, frontend, and security/container checks passed on tested head `7a64a10`.
 - GitHub tag/release: **NOT_EXECUTED** because the decision is NO-GO and no release authority was available.
 - Real external provider smoke: **NOT_RUN**; credentials were not supplied.
 - Production Docker image build/smoke: **NOT_RUN**; Docker API access was denied in this session.

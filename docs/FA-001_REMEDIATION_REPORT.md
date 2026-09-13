@@ -101,7 +101,11 @@ also resumed and completed against the restored database.
 - `226dae5` — `fix(persistence): persist production business state`
 - `fb76b02` — `fix(runtime): keep production dependencies type-safe`
 - `fc28aad` — `test(recovery): verify full artifact restoration`
-- All three commits were pushed to `origin/release/v1.0.0` without force.
+- `093df75` — `docs: record FA-001 remediation outcome`
+- `e765b0e` — `fix(ci): initialize checkpoint schema before tests`
+- `7a64a10` — `fix(ci): configure checkpoint initialization database`
+- All commits were pushed to `origin/release/v1.0.0` without force. PR #6 checks passed for
+  backend, frontend, and security/container jobs on the latest tested head.
 - FA-001 is resolved. This does not authorize `v1.0.0`: real external-provider E2E remains
   `NOT_RUN`, browser UI replay remains partial, and production-compose provider smoke remains
   `NOT_RUN`. The aggregate release decision therefore remains **NO-GO**.
