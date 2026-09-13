@@ -99,7 +99,7 @@ The workspace initial page loaded with zero console errors and screenshot [initi
 
 ## Release and external-operation status
 
-- GitHub push: **NOT_EXECUTED**. The destination was rejected by the security policy pending explicit approval; no push was claimed.
+- GitHub push: **EXECUTED**. Branch `release/v1.0.0` was pushed to `origin` after explicit user authorization; no force push was used.
 - GitHub tag/release: **NOT_EXECUTED** because the decision is NO-GO and no release authority was available.
 - Real external provider smoke: **NOT_RUN**; credentials were not supplied.
 - Production Docker image build/smoke: **NOT_RUN**; Docker API access was denied in this session.
