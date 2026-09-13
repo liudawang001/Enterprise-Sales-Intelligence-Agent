@@ -1,11 +1,11 @@
 # Restart / Recovery / Backup Restore 第二阶段验收报告
 
-**执行时间：** 2026-09-13（Asia/Shanghai）  
-**分支：** `release/v1.0.0`  
-**基线 HEAD：** `4747044`  
-**修复 Commit：** `7d674b3` (`fix(recovery): harden restart and shutdown recovery`)  
-**Provider 模式：** deterministic fake；503/Timeout 为故障注入，不是外部 Provider E2E  
-**Recovery 专项结论：** **PASS**  
+**执行时间：** 2026-09-13（Asia/Shanghai）
+**分支：** `release/v1.0.0`
+**基线 HEAD：** `4747044`
+**修复 Commit：** `7d674b3` (`fix(recovery): harden restart and shutdown recovery`)
+**Provider 模式：** deterministic fake；503/Timeout 为故障注入，不是外部 Provider E2E
+**Recovery 专项结论：** **PASS**
 **仓库整体 Release 结论：** **NO-GO**（本阶段之外的既有 Mandatory Gates 与全仓 Ruff 基线尚未全部通过）
 
 ## 验收结论
@@ -57,9 +57,9 @@
 
 ## Backup / Restore 证据
 
-最终 dump：`/tmp/phase2_recovery_20260913.dump`（PostgreSQL 容器内）  
-源库：`phase2_recovery_source_20260913`  
-恢复库：`phase2_recovery_restore_20260913`  
+最终 dump：`/tmp/phase2_recovery_20260913.dump`（PostgreSQL 容器内）
+源库：`phase2_recovery_source_20260913`
+恢复库：`phase2_recovery_restore_20260913`
 恢复参数：`--no-owner --no-acl --no-comments --exit-on-error`
 
 首次 restore 在 `COMMENT ON EXTENSION vector` 因扩展所有权失败。复测在全新 DB 中由管理员预创建 `vector`，业务用户恢复所有业务对象，并跳过非业务 COMMENT；restore 成功。
