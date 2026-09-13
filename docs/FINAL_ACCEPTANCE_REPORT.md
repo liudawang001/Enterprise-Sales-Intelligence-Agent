@@ -134,6 +134,7 @@ created by this pass.
 | Python dependency audit | `pip-audit` | **NOT_RUN**: DNS/network unavailable |
 | Frontend dependency audit | `npm audit --omit=dev` | **NOT_RUN**: DNS/network unavailable |
 | Alembic head | `alembic heads` | **PASS**, `0009_fa001_durable_business_state` |
+| Full-repository lint | `ruff check .` | **FAIL**, 547 existing findings; no unrelated baseline formatting was changed |
 
 ### Browser full flow
 
