@@ -7,6 +7,7 @@ docs/*
 !docs/DEPLOYMENT_RUNBOOK.md
 !docs/RECOVERY_RUNBOOK.md
 !docs/DEMO_GUIDE.md
+!docs/FA-001_REMEDIATION_REPORT.md
 
 # macOS metadata
 .DS_Store

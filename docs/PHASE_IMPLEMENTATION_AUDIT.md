@@ -164,3 +164,13 @@ Implementation audit: **FAIL** for release readiness.
 Release decision at this milestone: **NO-GO** because FA-001 and FA-002 are open BLOCKERs.
 No tag or GitHub Release is permitted. The next step is the documented blocker fix loop,
 followed by the full regression and all remaining mandatory gates.
+
+## FA-001 re-audit — 2026-09-13
+
+FA-001 is **RESOLVED** by `226dae5`. Production startup now constructs PostgreSQL-backed
+repositories for knowledge, tasks/versions, rules/criteria, research/candidates/sources,
+entities, evidence/resolved fields/profiles, scoring, mutations, execution snapshots, delivery
+snapshots, and exports. A PostgreSQL connection failure aborts startup rather than falling back to
+memory. Full-graph cross-instance persistence, clarification restart/resume, SIGTERM shutdown,
+custom-format dump/restore, restored API reads/download, and restored unfinished-task resume all
+passed. See `FA-001_REMEDIATION_REPORT.md` for commands, counts, and residual non-FA-001 blockers.

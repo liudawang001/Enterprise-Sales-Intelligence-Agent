@@ -21,6 +21,7 @@ class DeliverySnapshotRecord(Base):
     scoring_profile_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
     execution_snapshot_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
     result_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    bundle_json: Mapped[dict | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
@@ -50,3 +51,4 @@ class ExportRecord(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     error_code: Mapped[str | None] = mapped_column(String(80))
     error_message: Mapped[str | None] = mapped_column(Text)
+    events_json: Mapped[list] = mapped_column(JSONB, default=list)

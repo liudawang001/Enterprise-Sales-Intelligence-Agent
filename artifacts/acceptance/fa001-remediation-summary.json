@@ -1,0 +1,78 @@
+{
+  "executed_at": "2026-09-13T14:30:09+08:00",
+  "branch": "release/v1.0.0",
+  "fa001_status": "RESOLVED",
+  "release_decision": "NO-GO",
+  "migration_head": "0009_fa001_durable_business_state",
+  "tests": {
+    "persistence_and_restart": {"passed": 3, "failed": 0},
+    "restored_application": {"passed": 2, "failed": 0},
+    "full_regression": {"passed": 169, "skipped": 17, "deselected": 1},
+    "integration_marker": {"passed": 18, "skipped": 0, "deselected": 169},
+    "recovery_marker": {"passed": 4, "deselected": 183},
+    "delivery_export_regression": {"passed": 13, "failed": 0}
+  },
+  "graceful_shutdown": {
+    "signal": "SIGTERM",
+    "business_request_status": "COMPLETED",
+    "shutdown_complete_logged": true,
+    "sigkill_required": false,
+    "observed_wait_seconds_upper_bound": 1,
+    "budget_seconds": 30
+  },
+  "backup_restore": {
+    "format": "pg_dump custom",
+    "restore_exit_on_error": true,
+    "application_read_test": "PASS",
+    "waiting_task_resume": "PASS",
+    "source_counts": {
+      "lead_tasks": 14,
+      "lead_task_versions": 24,
+      "enterprise_candidates": 45,
+      "research_source_records": 162,
+      "enterprise_evidence": 592,
+      "resolved_fields": 273,
+      "verified_enterprise_profiles": 15,
+      "lead_scores": 15,
+      "delivery_snapshots": 3,
+      "exports": 3,
+      "checkpoints": 770
+    },
+    "restored_counts": {
+      "lead_tasks": 14,
+      "lead_task_versions": 24,
+      "enterprise_candidates": 45,
+      "research_source_records": 162,
+      "enterprise_evidence": 592,
+      "resolved_fields": 273,
+      "verified_enterprise_profiles": 15,
+      "lead_scores": 15,
+      "delivery_snapshots": 3,
+      "exports": 3,
+      "checkpoints": 770
+    }
+  },
+  "git": {
+    "core_commit": "226dae5",
+    "runtime_commit": "fb76b02",
+    "recovery_report_commit": "fc28aad",
+    "outcome_documentation_commit": "093df75",
+    "ci_checkpoint_init_commits": ["e765b0e", "7a64a10"],
+    "core_push": "EXECUTED",
+    "followup_push": "EXECUTED",
+    "force_push": false
+  },
+  "github_actions": {
+    "tested_head": "7a64a10",
+    "backend": "PASS",
+    "frontend": "PASS",
+    "security_and_containers": "PASS",
+    "api_image_build": "PASS",
+    "frontend_image_build": "PASS"
+  },
+  "remaining_release_blockers": [
+    "real external-provider E2E NOT_RUN",
+    "full browser UI replay PARTIAL",
+    "production-compose provider smoke NOT_RUN"
+  ]
+}

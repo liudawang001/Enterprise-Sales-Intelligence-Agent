@@ -31,9 +31,9 @@ from app.tasks.references import TaskReferenceResolver
 class AgentDependencies:
     task_repository: MockTaskRepository
     task_service: TaskService
-    business_service: MockBusinessService
+    business_service: MockBusinessService | None
     research_service: ResearchService
-    scoring_service: MockScoringService
+    scoring_service: MockScoringService | None
     rule_service: BusinessRuleService
     knowledge_service: object | None = None
     enterprise_repository: InMemoryEnterpriseRepository | None = None
@@ -66,6 +66,87 @@ def build_dependencies(settings: Settings | None = None) -> AgentDependencies:
     lead_score_repository = InMemoryLeadScoreRepository()
     mutation_repository = InMemoryMutationRepository()
     execution_snapshot_repository = InMemoryExecutionSnapshotRepository()
+    delivery_snapshot_repository = InMemoryDeliverySnapshotRepository()
+    export_repository = InMemoryExportRepository()
+    return _assemble_dependencies(
+        settings,
+        repository=repository,
+        rule_service=rule_service,
+        research_service=research_service,
+        enterprise_repository=enterprise_repository,
+        evidence_repository=evidence_repository,
+        lead_score_repository=lead_score_repository,
+        mutation_repository=mutation_repository,
+        execution_snapshot_repository=execution_snapshot_repository,
+        delivery_snapshot_repository=delivery_snapshot_repository,
+        export_repository=export_repository,
+        use_legacy_mock_services=True,
+    )
+
+
+def build_postgres_dependencies(settings: Settings, session_factory: object) -> AgentDependencies:
+    """Build the production graph with PostgreSQL as business source of truth."""
+
+    from app.knowledge.services.knowledge_service import KnowledgeService
+    from app.repositories.postgres_business import (
+        PostgresDeliverySnapshotRepository,
+        PostgresEnterpriseRepository,
+        PostgresEvidenceRepository,
+        PostgresExecutionSnapshotRepository,
+        PostgresExportRepository,
+        PostgresKnowledgeRepository,
+        PostgresLeadScoreRepository,
+        PostgresMutationRepository,
+        PostgresResearchRepository,
+        PostgresRuleRepository,
+        PostgresTaskRepository,
+    )
+
+    repository = PostgresTaskRepository(session_factory)
+    rule_service = BusinessRuleService(PostgresRuleRepository(session_factory))
+    rule_service.seed_demo_rules()
+    research_repository = PostgresResearchRepository(session_factory)
+    research_service = ResearchService(repository=research_repository, settings=settings)
+    enterprise_repository = PostgresEnterpriseRepository(research_repository, session_factory)
+    evidence_repository = PostgresEvidenceRepository(session_factory)
+    lead_score_repository = PostgresLeadScoreRepository(session_factory)
+    mutation_repository = PostgresMutationRepository(session_factory)
+    execution_snapshot_repository = PostgresExecutionSnapshotRepository(session_factory)
+    delivery_snapshot_repository = PostgresDeliverySnapshotRepository(session_factory)
+    export_repository = PostgresExportRepository(session_factory)
+    knowledge_repository = PostgresKnowledgeRepository(session_factory)
+    deps = _assemble_dependencies(
+        settings,
+        repository=repository,
+        rule_service=rule_service,
+        research_service=research_service,
+        enterprise_repository=enterprise_repository,
+        evidence_repository=evidence_repository,
+        lead_score_repository=lead_score_repository,
+        mutation_repository=mutation_repository,
+        execution_snapshot_repository=execution_snapshot_repository,
+        delivery_snapshot_repository=delivery_snapshot_repository,
+        export_repository=export_repository,
+    )
+    deps.knowledge_service = KnowledgeService(knowledge_repository)
+    return deps
+
+
+def _assemble_dependencies(
+    settings: Settings,
+    *,
+    repository,
+    rule_service,
+    research_service,
+    enterprise_repository,
+    evidence_repository,
+    lead_score_repository,
+    mutation_repository,
+    execution_snapshot_repository,
+    delivery_snapshot_repository,
+    export_repository,
+    use_legacy_mock_services: bool = False,
+) -> AgentDependencies:
     for profile in demo_scoring_profiles():
         lead_score_repository.save_profile(profile)
     verification_service = EvidenceVerificationService(evidence_repository, enterprise_repository)
@@ -100,9 +181,9 @@ def build_dependencies(settings: Settings | None = None) -> AgentDependencies:
     deps = AgentDependencies(
         task_repository=repository,
         task_service=TaskService(repository),
-        business_service=MockBusinessService(rule_service),
+        business_service=MockBusinessService(rule_service) if use_legacy_mock_services else None,
         research_service=research_service,
-        scoring_service=MockScoringService(),
+        scoring_service=MockScoringService() if use_legacy_mock_services else None,
         rule_service=rule_service,
         enterprise_repository=enterprise_repository,
         evidence_repository=evidence_repository,
@@ -123,7 +204,7 @@ def build_dependencies(settings: Settings | None = None) -> AgentDependencies:
         mutation_repository=mutation_repository,
         execution_snapshot_repository=execution_snapshot_repository,
         execution_coordinator=InMemoryExecutionCoordinator(),
-        delivery_snapshot_repository=InMemoryDeliverySnapshotRepository(),
+        delivery_snapshot_repository=delivery_snapshot_repository,
         task_reference_resolver=TaskReferenceResolver(repository),
     )
     deps.mutation_service = MutationService(
@@ -138,7 +219,7 @@ def build_dependencies(settings: Settings | None = None) -> AgentDependencies:
     from app.exports.service import ExportService
     from app.exports.storage import LocalExportStorage, S3CompatibleExportStorage
 
-    deps.export_repository = InMemoryExportRepository()
+    deps.export_repository = export_repository
     storage = LocalExportStorage(settings.export_dir)
     if settings.export_storage_backend == "s3":
         storage = S3CompatibleExportStorage(

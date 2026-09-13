@@ -6,6 +6,7 @@ from uuid import uuid4
 from app.agent.dependencies import AgentDependencies
 from app.agent.state import AgentState
 from app.criteria.evaluator import DefaultCriteriaEvaluator
+from app.research.models import CandidateStatus
 
 
 def _criteria(state: AgentState, deps: AgentDependencies):
@@ -276,7 +277,7 @@ def make_select_deep_research(deps: AgentDependencies):
         for candidate_id in selected:
             item = deps.research_service.repository.candidates[candidate_id]
             deps.research_service.repository.save_candidate(
-                item.model_copy(update={"status": "SELECTED_FOR_RESEARCH"})
+                item.model_copy(update={"status": CandidateStatus.SELECTED_FOR_RESEARCH})
             )
         return {
             "deep_research_batches": batches,
