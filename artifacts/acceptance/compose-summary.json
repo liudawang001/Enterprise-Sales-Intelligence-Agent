@@ -1,0 +1,7 @@
+{
+  "config_render": "PASS",
+  "image_build": "NOT_RUN",
+  "production_smoke": "NOT_RUN",
+  "services": ["postgres", "redis", "api", "frontend"],
+  "limitation": "Docker API socket access was denied in this session; production credentials were not available."
+}

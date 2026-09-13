@@ -1,5 +1,7 @@
 # Enterprise Sales Intelligence Agent（政企营销智能体）
 
+> **v1.0 acceptance status (2026-09-13): NO-GO.** The final audit found a production persistence blocker (FA-001): the main graph still uses in-memory Phase 2–7 business repositories, so a restart/restore cannot recover the complete evidence, score and export artifact graph. See [FINAL_ACCEPTANCE_REPORT](docs/FINAL_ACCEPTANCE_REPORT.md) and [PHASE_IMPLEMENTATION_AUDIT](docs/PHASE_IMPLEMENTATION_AUDIT.md). No v1.0.0 tag or release has been published.
+
 **Enterprise Sales Intelligence Agent（政企营销智能体）** 是一套面向政企营销场景的状态化智能 Agent。系统通过 RAG 获取产品、套餐和营销活动知识，结合多轮对话形成结构化营销任务，并编排企业信息、地图、Web Search 与企业官网等多源工具，实现企业潜客发现、情报补全、实体归一化、证据核验、潜客评分及 Excel 交付。
 
 ## Phase 1 / Phase 2 / Phase 3 / Phase 4 / Phase 5 / Phase 6 / Phase 7 / Phase 8 范围
@@ -18,7 +20,7 @@ Phase 7 将某个明确 Task Version 的 Verified Lead、Lead Score 与字段级
 
 Phase 8 完成生产工程化收口：生产 Graph 使用 PostgreSQL `AsyncPostgresSaver` 并在应用生命周期编译一次；Execution Lease/Fence 与 Task Version Fence 联合阻止重复或过期执行 Promote；Redis 提供可丢失缓存、原子 Token Bucket 和跨 Worker Stream，PostgreSQL 保留持久事件；Langfuse v4/OpenTelemetry、JSON 日志、脱敏、低基数指标与三层健康检查形成 `trace_id` 排障链路。JWT/OIDC、角色门禁、工作区过滤、受权下载、生产镜像、Nginx、迁移、备份恢复、CI、Fault 与 Load Test 提供可重复的生产治理。
 
-生产部署顺序固定为 `alembic upgrade head`、`python -m scripts.init_checkpointer`、启动 API。详见 [deployment](docs/deployment.md) 和 [runbook](docs/runbook.md)。默认 Demo 仍是本地内存业务 Repository 与 Fake Provider；“production-like”不表示已接入真实运营商私有数据、企业 IAM、Kubernetes 或多地域高可用。
+生产部署顺序固定为 `alembic upgrade head`、`python -m scripts.init_checkpointer`、启动 API。详见 [deployment](docs/deployment.md)、[DEPLOYMENT_RUNBOOK](docs/DEPLOYMENT_RUNBOOK.md) 和 [RECOVERY_RUNBOOK](docs/RECOVERY_RUNBOOK.md)。默认 Demo 仍是本地内存业务 Repository 与 Fake Provider；当前验收已确认生产主链的 Phase 2–7 业务仓储尚未完全持久化，因此不能把 “production-like” 解释为 v1.0 已发布。
 
 ## Phase 7 Delivery Workspace
 
