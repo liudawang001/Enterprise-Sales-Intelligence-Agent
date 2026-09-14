@@ -12,7 +12,7 @@ from collections.abc import Callable
 from copy import deepcopy
 from uuid import UUID, uuid4
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.agent.enums import TaskStage, TaskStatus
@@ -32,6 +32,7 @@ from app.execution.models import ArtifactValidity, TaskExecutionSnapshot
 from app.exports.models import ExportJob, ExportStatus
 from app.knowledge.models import KnowledgeChunk, KnowledgeDocument
 from app.knowledge.repository import InMemoryKnowledgeRepository
+from app.knowledge.retrieval.models import RetrievalHit
 from app.mutation.models import ReexecutionPlan, TaskMutation
 from app.mutation.repository import InMemoryMutationRepository
 from app.persistence.models.chunk import KnowledgeChunkRecord
@@ -1550,6 +1551,10 @@ class PostgresKnowledgeRepository(InMemoryKnowledgeRepository, _PostgresBacked):
                     page_count=row.page_count,
                     chunk_count=row.chunk_count,
                     error_message=row.error_message,
+                    embedding_provider=row.embedding_provider,
+                    embedding_model=row.embedding_model,
+                    embedding_dimension=row.embedding_dimension,
+                    embedding_profile_version=row.embedding_profile_version,
                     created_at=row.created_at,
                     updated_at=row.updated_at,
                 )
@@ -1592,6 +1597,10 @@ class PostgresKnowledgeRepository(InMemoryKnowledgeRepository, _PostgresBacked):
             page_count=value.page_count,
             chunk_count=value.chunk_count,
             error_message=value.error_message,
+            embedding_provider=value.embedding_provider,
+            embedding_model=value.embedding_model,
+            embedding_dimension=value.embedding_dimension,
+            embedding_profile_version=value.embedding_profile_version,
             created_at=value.created_at,
             updated_at=value.updated_at,
         )
@@ -1628,5 +1637,63 @@ class PostgresKnowledgeRepository(InMemoryKnowledgeRepository, _PostgresBacked):
                         metadata_json=value.metadata,
                     )
                 )
+            # The lexical representation is already tokenized (including
+            # Chinese terms), so a simple configuration keeps FTS deterministic.
+            session.flush()
+            session.execute(
+                update(KnowledgeChunkRecord)
+                .where(KnowledgeChunkRecord.document_id == document_id)
+                .values(search_vector=func.to_tsvector("simple", KnowledgeChunkRecord.lexical_content))
+            )
 
         self._transaction(persist)
+
+    def _base_knowledge_stmt(self, knowledge_filter):
+        stmt = select(KnowledgeChunkRecord, KnowledgeDocumentRecord).join(
+            KnowledgeDocumentRecord, KnowledgeDocumentRecord.id == KnowledgeChunkRecord.document_id
+        )
+        if knowledge_filter.statuses:
+            stmt = stmt.where(KnowledgeDocumentRecord.status.in_([_enum_value(value) for value in knowledge_filter.statuses]))
+        if knowledge_filter.businesses:
+            stmt = stmt.where(KnowledgeDocumentRecord.business.in_(knowledge_filter.businesses))
+        if knowledge_filter.document_types:
+            stmt = stmt.where(KnowledgeDocumentRecord.document_type.in_(knowledge_filter.document_types))
+        if knowledge_filter.authorities:
+            stmt = stmt.where(KnowledgeDocumentRecord.authority.in_([_enum_value(value) for value in knowledge_filter.authorities]))
+        if knowledge_filter.regions:
+            stmt = stmt.where(KnowledgeDocumentRecord.region.in_(knowledge_filter.regions))
+        if knowledge_filter.workspace_id:
+            stmt = stmt.where((KnowledgeDocumentRecord.access_scope == "GLOBAL") | (KnowledgeDocumentRecord.workspace_id == knowledge_filter.workspace_id))
+        else:
+            stmt = stmt.where(KnowledgeDocumentRecord.access_scope == "GLOBAL")
+        if knowledge_filter.effective_at:
+            at = knowledge_filter.effective_at
+            stmt = stmt.where((KnowledgeDocumentRecord.effective_from.is_(None)) | (KnowledgeDocumentRecord.effective_from <= at))
+            stmt = stmt.where((KnowledgeDocumentRecord.effective_to.is_(None)) | (KnowledgeDocumentRecord.effective_to >= at))
+        if knowledge_filter.embedding_profile_version:
+            stmt = stmt.where(KnowledgeDocumentRecord.embedding_profile_version == knowledge_filter.embedding_profile_version)
+        return stmt
+
+    @staticmethod
+    def _hit(chunk, *, dense_score=None, sparse_score=None, dense_rank=None, sparse_rank=None):
+        return RetrievalHit(chunk_id=str(chunk.id), document_id=str(chunk.document_id), content=chunk.content, dense_rank=dense_rank, dense_score=dense_score, sparse_rank=sparse_rank, sparse_score=sparse_score, page_start=chunk.page_start, page_end=chunk.page_end, metadata=chunk.metadata_json or {})
+
+    def dense_search(self, query: str, *, embedding, knowledge_filter, top_k: int):
+        vector = embedding.embed_query(query)
+        return self.dense_search_vector(vector, knowledge_filter=knowledge_filter, top_k=top_k)
+
+    def dense_search_vector(self, vector: list[float], *, knowledge_filter, top_k: int):
+        distance = KnowledgeChunkRecord.embedding.cosine_distance(vector).label("distance")
+        stmt = self._base_knowledge_stmt(knowledge_filter).add_columns(distance).where(KnowledgeChunkRecord.embedding.is_not(None)).order_by(distance).limit(top_k)
+        with self.session_factory() as session:
+            rows = session.execute(stmt).all()
+        return [self._hit(chunk, dense_rank=index, dense_score=1.0 - float(distance_value)) for index, (chunk, _doc, distance_value) in enumerate(rows, start=1)]
+
+    def sparse_search(self, query: str, *, tokenizer, knowledge_filter, top_k: int):
+        lexical_query = tokenizer.tokenize(query)
+        ts_query = func.plainto_tsquery("simple", lexical_query)
+        score = func.ts_rank_cd(KnowledgeChunkRecord.search_vector, ts_query).label("score")
+        stmt = self._base_knowledge_stmt(knowledge_filter).add_columns(score).where(KnowledgeChunkRecord.search_vector.op("@@")(ts_query)).order_by(score.desc()).limit(top_k)
+        with self.session_factory() as session:
+            rows = session.execute(stmt).all()
+        return [self._hit(chunk, sparse_rank=index, sparse_score=float(score_value)) for index, (chunk, _doc, score_value) in enumerate(rows, start=1)]

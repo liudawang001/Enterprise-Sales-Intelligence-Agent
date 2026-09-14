@@ -15,7 +15,7 @@ REGION_HIERARCHY = {
 
 
 class MetadataFilterBuilder:
-    def build(self, query: KnowledgeQuery) -> KnowledgeFilter:
+    def build(self, query: KnowledgeQuery, *, embedding_profile_version: str | None = None) -> KnowledgeFilter:
         regions = REGION_HIERARCHY.get((query.region or "NATIONAL").upper(), [query.region] if query.region else [])
         return KnowledgeFilter(
             businesses=[query.business] if query.business else [],
@@ -24,4 +24,5 @@ class MetadataFilterBuilder:
             statuses=[DocumentStatus.READY],
             effective_at=query.as_of_date or date.today() if query.current_only else query.as_of_date,
             workspace_id=query.workspace_id,
+            embedding_profile_version=embedding_profile_version,
         )

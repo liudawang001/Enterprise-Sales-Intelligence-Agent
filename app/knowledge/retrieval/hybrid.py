@@ -4,6 +4,7 @@ from app.knowledge.retrieval.models import RetrievalHit
 from app.knowledge.retrieval.rrf import ReciprocalRankFusion
 from app.knowledge.retrieval.sparse import PostgresSparseRetriever
 from app.knowledge.rerank.base import Reranker
+from app.observability.metrics import metrics
 
 
 class HybridRetriever:
@@ -16,7 +17,7 @@ class HybridRetriever:
     async def search(self, query: str, *, knowledge_filter: KnowledgeFilter, dense_top_k: int = 20, sparse_top_k: int = 20, fusion_top_k: int = 12, rerank_top_k: int = 6) -> tuple[list[RetrievalHit], list[str]]:
         warnings: list[str] = []
         try:
-            dense_hits = self.dense.search(query, knowledge_filter=knowledge_filter, top_k=dense_top_k)
+            dense_hits = await self.dense.asearch(query, knowledge_filter=knowledge_filter, top_k=dense_top_k)
         except Exception:
             dense_hits = []
             warnings.append("DENSE_RETRIEVAL_DEGRADED")
@@ -33,5 +34,6 @@ class HybridRetriever:
         try:
             return await self.reranker.rerank(query, fused, rerank_top_k), warnings
         except Exception:
+            metrics.add("rerank_degraded_total", provider=getattr(self.reranker, "provider", "unknown"))
             warnings.append("RERANKER_DEGRADED")
             return fused[:rerank_top_k], warnings

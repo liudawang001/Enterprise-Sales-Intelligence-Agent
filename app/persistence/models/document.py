@@ -29,6 +29,10 @@ class KnowledgeDocumentRecord(Base):
     page_count: Mapped[int] = mapped_column(Integer, default=0)
     chunk_count: Mapped[int] = mapped_column(Integer, default=0)
     error_message: Mapped[str | None] = mapped_column(Text)
+    embedding_provider: Mapped[str | None] = mapped_column(String(40), index=True)
+    embedding_model: Mapped[str | None] = mapped_column(String(120), index=True)
+    embedding_dimension: Mapped[int | None] = mapped_column(Integer)
+    embedding_profile_version: Mapped[str | None] = mapped_column(String(160), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
 

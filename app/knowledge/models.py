@@ -26,6 +26,10 @@ class KnowledgeDocument(BaseModel):
     page_count: int = 0
     chunk_count: int = 0
     error_message: str | None = None
+    embedding_provider: str | None = None
+    embedding_model: str | None = None
+    embedding_dimension: int | None = None
+    embedding_profile_version: str | None = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -53,6 +57,7 @@ class KnowledgeFilter(BaseModel):
     statuses: list[DocumentStatus] = Field(default_factory=lambda: [DocumentStatus.READY])
     effective_at: date | None = None
     workspace_id: str | None = None
+    embedding_profile_version: str | None = None
 
 
 class KnowledgeQuery(BaseModel):

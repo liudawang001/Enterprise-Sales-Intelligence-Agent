@@ -26,6 +26,7 @@ from app.health.checks import router as health_router
 from app.infrastructure.events import InMemoryTaskEventRepository, TaskEventService
 from app.infrastructure.rate_limit import InMemoryTokenBucket, inbound_rate_key
 from app.knowledge.ingestion.service import DocumentIngestionService
+from app.knowledge.ingestion.chunker import ChunkerConfig, StructureAwareChunker
 from app.knowledge.repository import InMemoryKnowledgeRepository
 from app.knowledge.services.knowledge_service import KnowledgeService
 from app.observability.context import RequestContext, reset_request_context, set_request_context
@@ -49,8 +50,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.state.dependencies = deps
     knowledge_repository = InMemoryKnowledgeRepository()
     application.state.knowledge_repository = knowledge_repository
-    application.state.ingestion_service = DocumentIngestionService(knowledge_repository)
-    application.state.knowledge_service = KnowledgeService(knowledge_repository)
+    from app.providers.embedding.factory import build_embedding_provider
+    from app.knowledge.rerank.factory import build_reranker
+    embedding = build_embedding_provider(settings)
+    application.state.ingestion_service = DocumentIngestionService(
+        knowledge_repository,
+        embedding=embedding,
+        chunker=StructureAwareChunker(ChunkerConfig(settings.rag_chunk_size, settings.rag_chunk_overlap)),
+    )
+    from app.providers.llm.factory import create_chat_model
+    application.state.knowledge_service = KnowledgeService(
+        knowledge_repository,
+        embedding=embedding,
+        reranker=build_reranker(settings),
+        chat_model=create_chat_model(provider=settings.llm_provider, model=settings.llm_model, api_key=settings.llm_api_key, base_url=settings.llm_base_url),
+    )
     deps.knowledge_service = application.state.knowledge_service
     application.state.graph = build_main_graph(deps, knowledge_service=application.state.knowledge_service)
     application.state.event_repository = InMemoryTaskEventRepository()
