@@ -21,6 +21,10 @@ class FakeChatModel:
     async def ainvoke_text(self, prompt: str, *, metadata=None) -> str:
         return prompt
 
+    async def astream_text(self, prompt: str, *, metadata=None):
+        for index in range(0, len(prompt), 32):
+            yield prompt[index : index + 32]
+
     def structured(self, schema: type[BaseModel], prompt: str, *, metadata=None):
         raise RuntimeError("FakeChatModel does not implement structured generation")
 

@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import os
 from contextlib import suppress
@@ -6,6 +7,7 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage
 from langgraph.types import Command
 from pydantic import BaseModel, Field
@@ -23,6 +25,57 @@ class ChatRequest(BaseModel):
     session_id: str = Field(min_length=1)
     message: str = Field(min_length=1)
     request_id: str | None = None
+
+
+@router.post("/chat/stream")
+async def chat_stream(payload: ChatRequest, request: Request) -> StreamingResponse:
+    """Stream LLM text deltas using a provider-neutral SSE contract."""
+    if not getattr(request.app.state, "accepting_work", True):
+        raise HTTPException(503, "SERVICE_SHUTTING_DOWN", headers={"Retry-After": "1"})
+    context = get_request_context()
+    trace_id = context.trace_id if context else str(uuid4())
+    request_id = payload.request_id or (context.request_id if context else str(uuid4()))
+    llm = request.app.state.dependencies.llm
+    metadata = {
+        "operation": "chat_stream",
+        "request_id": request_id,
+        "trace_id": trace_id,
+        "workspace_id": getattr(getattr(request.state, "principal", None), "workspace_id", ""),
+        "user_id": getattr(getattr(request.state, "principal", None), "user_id", ""),
+    }
+
+    async def stream():
+        metrics.add("active_sse_connections", 1)
+        full_text: list[str] = []
+        try:
+            streamer = getattr(llm, "astream_text", None)
+            if streamer is not None:
+                async for delta in streamer(payload.message, metadata=metadata):
+                    if not delta:
+                        continue
+                    text_delta = str(delta)
+                    full_text.append(text_delta)
+                    yield "event: token\ndata: " + json.dumps({"delta": text_delta}, ensure_ascii=False) + "\n\n"
+            else:
+                text = await llm.ainvoke_text(payload.message, metadata=metadata)
+                if text:
+                    full_text.append(text)
+                    yield "event: token\ndata: " + json.dumps({"delta": text}, ensure_ascii=False) + "\n\n"
+            yield "event: done\ndata: " + json.dumps({"message": "".join(full_text)}, ensure_ascii=False) + "\n\n"
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            # Provider errors are intentionally normalized and never expose
+            # credentials or raw upstream payloads to the client.
+            yield "event: error\ndata: " + json.dumps({"code": str(exc)}, ensure_ascii=False) + "\n\n"
+        finally:
+            metrics.add("active_sse_connections", -1)
+
+    return StreamingResponse(
+        stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 async def _interrupt_payload(result: dict[str, Any], graph, config: dict[str, Any]) -> dict[str, Any] | None:

@@ -1,3 +1,4 @@
+import asyncio
 from types import SimpleNamespace
 
 from pydantic import BaseModel
@@ -24,6 +25,10 @@ class FakeChat:
     async def ainvoke(self, messages, config=None):
         return SimpleNamespace(content="异步回答 [1]")
 
+    async def astream(self, messages, config=None):
+        yield SimpleNamespace(content="流式")
+        yield SimpleNamespace(content="回答 [1]")
+
     def with_structured_output(self, schema, method=None):
         assert method == "json_mode"
         return FakeRunnable()
@@ -42,6 +47,13 @@ def _model() -> DeepSeekChatModel:
 
 def test_deepseek_text_path_extracts_message_content() -> None:
     assert _model().invoke_text("hello") == "回答 [1]"
+
+
+def test_deepseek_stream_path_yields_deltas() -> None:
+    async def collect() -> list[str]:
+        return [chunk async for chunk in _model().astream_text("hello")]
+
+    assert asyncio.run(collect()) == ["流式", "回答 [1]"]
 
 
 def test_deepseek_structured_path_validates_pydantic_schema() -> None:

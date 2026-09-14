@@ -30,6 +30,17 @@ def test_chat_api_complete_request_and_business_qa() -> None:
     assert "没有找到足够证据" in qa.json()["message"]
 
 
+def test_chat_stream_emits_token_and_done_events() -> None:
+    client = TestClient(create_app())
+    response = client.post("/api/chat/stream", json={"session_id": "stream-api", "message": "hello"})
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/event-stream")
+    assert "event: token" in response.text
+    assert '"delta": "hello"' in response.text
+    assert "event: done" in response.text
+
+
 def test_chat_rejects_new_execution_during_shutdown() -> None:
     application = create_app()
     with TestClient(application) as client:

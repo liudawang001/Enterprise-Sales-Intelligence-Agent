@@ -127,6 +127,45 @@ class DeepSeekChatModel:
             self._semaphore.release()
             metrics.add("llm_request_duration_seconds", monotonic() - started, provider=self.provider)
 
+    async def astream_text(self, prompt: str, *, metadata: dict[str, Any] | None = None):
+        """Yield text deltas from DeepSeek's streaming chat completion."""
+        started = monotonic()
+        operation = str((metadata or {}).get("operation", "stream"))
+        self._guard_open()
+        self._semaphore.acquire()
+        metrics.add("llm_calls_total", provider=self.provider, operation=operation)
+        emitted = False
+        try:
+            stream = getattr(self._chat, "astream", None)
+            if stream is None:
+                response = await self._chat.ainvoke(
+                    [HumanMessage(content=prompt)], config={"metadata": metadata or {}}
+                )
+                text = self._content(response).strip()
+                if text:
+                    emitted = True
+                    yield text
+            else:
+                async for chunk in stream(
+                    [HumanMessage(content=prompt)], config={"metadata": metadata or {}}
+                ):
+                    delta = self._content(chunk)
+                    if delta:
+                        emitted = True
+                        yield delta
+            if not emitted:
+                raise DeepSeekProviderError("DEEPSEEK_EMPTY_RESPONSE")
+            self._record_success()
+        except DeepSeekProviderError:
+            raise
+        except Exception as exc:
+            metrics.add("llm_errors_total", provider=self.provider, operation=operation)
+            self._record_failure()
+            raise DeepSeekProviderError(self._redactor.redact(str(exc))) from exc
+        finally:
+            self._semaphore.release()
+            metrics.add("llm_request_duration_seconds", monotonic() - started, provider=self.provider)
+
     def structured(self, schema: type[ModelT], prompt: str, *, metadata: dict[str, Any] | None = None) -> ModelT:
         started = monotonic()
         operation = str((metadata or {}).get("operation", "structured"))

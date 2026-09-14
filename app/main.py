@@ -25,8 +25,8 @@ from app.api.tasks import router as tasks_router
 from app.health.checks import router as health_router
 from app.infrastructure.events import InMemoryTaskEventRepository, TaskEventService
 from app.infrastructure.rate_limit import InMemoryTokenBucket, inbound_rate_key
-from app.knowledge.ingestion.service import DocumentIngestionService
 from app.knowledge.ingestion.chunker import ChunkerConfig, StructureAwareChunker
+from app.knowledge.ingestion.service import DocumentIngestionService
 from app.knowledge.repository import InMemoryKnowledgeRepository
 from app.knowledge.services.knowledge_service import KnowledgeService
 from app.observability.context import RequestContext, reset_request_context, set_request_context
@@ -50,8 +50,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.state.dependencies = deps
     knowledge_repository = InMemoryKnowledgeRepository()
     application.state.knowledge_repository = knowledge_repository
-    from app.providers.embedding.factory import build_embedding_provider
     from app.knowledge.rerank.factory import build_reranker
+    from app.providers.embedding.factory import build_embedding_provider
     embedding = build_embedding_provider(settings)
     application.state.ingestion_service = DocumentIngestionService(
         knowledge_repository,
@@ -111,7 +111,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 require_roles(principal, Role.ADMIN, Role.ANALYST, Role.VIEWER)
             context = RequestContext(request_id=request_id, trace_id=trace_id, principal=principal)
             token = set_request_context(context)
-            if request.url.path in {"/api/chat", "/api/exports", "/api/documents"} and request.method == "POST":
+            if (
+                request.url.path in {"/api/chat", "/api/chat/stream", "/api/exports", "/api/documents"}
+                and request.method == "POST"
+            ):
                 decision = await application.state.inbound_limiter.acquire(
                     inbound_rate_key(principal.workspace_id, principal.user_id, request.url.path),
                     capacity=120,
