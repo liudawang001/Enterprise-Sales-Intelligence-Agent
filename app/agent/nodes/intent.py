@@ -1,10 +1,18 @@
 import re
 
+from pydantic import BaseModel, Field
+
 from app.agent.enums import IntentType
 from app.agent.state import AgentState
 
 
-def classify_intent(state: AgentState) -> dict:
+class IntentResult(BaseModel):
+    intent: IntentType
+    confidence: float = Field(ge=0, le=1)
+    reason: str = ""
+
+
+def classify_intent(state: AgentState, llm=None) -> dict:
     text = (state.get("incoming_text") or "").strip()
     active_task = state.get("active_task_id")
     if re.search(r"导出.*Excel|Excel.*导出|导出", text, re.IGNORECASE):
@@ -21,4 +29,22 @@ def classify_intent(state: AgentState) -> dict:
         intent = IntentType.LEAD_DISCOVERY
     else:
         intent = IntentType.GENERAL_CHAT
-    return {"intent": intent.value, "intent_confidence": 1.0}
+    result = {"intent": intent.value, "intent_confidence": 1.0}
+    # Rule-based routing remains the fast path. Only ambiguous text uses the
+    # injected real model, and any provider/parse failure safely falls back.
+    if llm is not None and getattr(llm, "provider", "fake") != "fake" and intent == IntentType.GENERAL_CHAT:
+        try:
+            prompt = (
+                "Return valid json only. Classify the user message into exactly one intent "
+                "from BUSINESS_QA, LEAD_DISCOVERY, TASK_MODIFICATION, LEAD_QUERY, EXPORT_REQUEST, GENERAL_CHAT. "
+                "Do not invent a task or facts.\n"
+                f"User message: {text}"
+            )
+            if hasattr(llm, "structured"):
+                parsed = llm.structured(IntentResult, prompt, metadata={"operation": "classify_intent"})
+            else:
+                parsed = llm.with_structured_output(IntentResult, method="json_mode").invoke(prompt)
+            result = {"intent": parsed.intent.value, "intent_confidence": parsed.confidence}
+        except Exception:
+            pass
+    return result

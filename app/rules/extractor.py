@@ -17,8 +17,20 @@ class OfficialRuleExtractor:
 
     def extract(self, payload: OfficialRuleExtractionInput) -> OfficialRuleExtractionResult:
         if self.llm is not None:
-            structured = self.llm.with_structured_output(OfficialRuleExtractionResult)
-            return structured.invoke({"instruction": OFFICIAL_RULE_PROMPT, "input": payload.model_dump(mode="json")})
+            prompt = f"{OFFICIAL_RULE_PROMPT}\nInput: {payload.model_dump_json()}"
+            try:
+                if hasattr(self.llm, "structured"):
+                    return self.llm.structured(
+                        OfficialRuleExtractionResult,
+                        prompt,
+                        metadata={"operation": "official_rule_extraction"},
+                    )
+                structured = self.llm.with_structured_output(OfficialRuleExtractionResult)
+                return structured.invoke({"instruction": OFFICIAL_RULE_PROMPT, "input": payload.model_dump(mode="json")})
+            except Exception:
+                # Preserve the deterministic evidence parser as a safe,
+                # auditable fallback when the remote model is unavailable.
+                pass
         rules: list[ExtractedBusinessRule] = []
         ignored: list[str] = []
         for chunk in payload.evidence_chunks:
@@ -30,4 +42,3 @@ class OfficialRuleExtractor:
             if "短号互拨" in chunk.content:
                 ignored.append("支持内部短号互拨属于业务特征，不能直接转换为企业筛选条件")
         return OfficialRuleExtractionResult(rules=rules, ignored_facts=ignored)
-

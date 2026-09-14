@@ -59,6 +59,31 @@ def extract_task_patch(state: AgentState) -> dict[str, Any]:
     member_lt = re.search(r"成员(?:数|数量).*?(?:少于|小于|低于|<)\s*(\d+)", text)
     if member_lt:
         patch.setdefault("constraints", []).append(ConstraintPatch(field="member_count", operation="ADD", operator="LT", value=int(member_lt.group(1)), constraint_type="HARD").model_dump())
+    deps = state.get("_deps")
+    llm = getattr(deps, "llm", None)
+    if llm is not None and getattr(llm, "provider", "fake") != "fake" and (
+        not patch.get("business") or not patch.get("region") or not patch.get("target_count") or len(text) > 80
+    ):
+        try:
+            prompt = (
+                "Return valid json only. Extract a task patch from the user message. "
+                "Use only fields business, region, target_count, constraints, required_fields, export_fields. "
+                "Never relax hard requirements or invent missing values. "
+                "Constraint operation must be ADD, UPDATE, REMOVE, or CLEAR.\n"
+                f"Current deterministic candidate: {patch}\nUser message: {text}"
+            )
+            if hasattr(llm, "structured"):
+                parsed = llm.structured(TaskPatch, prompt, metadata={"operation": "extract_task_patch"})
+            else:
+                parsed = llm.with_structured_output(TaskPatch, method="json_mode").invoke(prompt)
+            candidate = parsed.model_dump(exclude_none=True)
+            for key in ("business", "region", "target_count", "required_fields", "export_fields"):
+                if candidate.get(key) is not None:
+                    patch[key] = candidate[key]
+            if candidate.get("constraints"):
+                patch["constraints"] = [item.model_dump() if hasattr(item, "model_dump") else item for item in candidate["constraints"]]
+        except Exception:
+            pass
     return {"task_patch": TaskPatch.model_validate(patch).model_dump(exclude_none=True)}
 
 

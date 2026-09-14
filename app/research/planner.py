@@ -57,13 +57,16 @@ class SearchQueryGenerator:
     async def generate_with_llm(
         self, criteria: LeadCriteria, llm: object
     ) -> SearchQueryVariants:
-        structured = llm.with_structured_output(SearchQueryVariants)
         prompt = (
-            "Generate only bounded map_queries and web_queries for enterprise discovery. "
+            "Return valid json only. Generate only bounded map_queries and web_queries for enterprise discovery. "
             "Do not generate company facts or relax hard constraints.\n"
             f"Criteria: {criteria.model_dump_json(exclude={'source_rule_ids'})}"
         )
-        result = await structured.ainvoke(prompt)
+        if hasattr(llm, "astructured"):
+            result = await llm.astructured(SearchQueryVariants, prompt, metadata={"operation": "search_query_generation"})
+        else:
+            structured = llm.with_structured_output(SearchQueryVariants)
+            result = await structured.ainvoke(prompt)
         validated = SearchQueryVariants.model_validate(result)
         return SearchQueryVariants(
             map_queries=list(dict.fromkeys(validated.map_queries))[: self.max_variants],

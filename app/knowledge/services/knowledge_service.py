@@ -71,7 +71,23 @@ class KnowledgeService:
         if not hits:
             return {"answer": "当前知识库中没有找到足够证据确认该问题。", "citations": [], "evidence_count": 0, "warnings": warnings + ["NO_EVIDENCE"]}
         citations = build_citations(hits)
-        answer = self.chat_model.answer(question, hits)
+        if hasattr(self.chat_model, "answer"):
+            answer = self.chat_model.answer(question, hits)
+        else:
+            evidence = []
+            for index, hit in enumerate(hits, start=1):
+                evidence.append(
+                    f"[{index}] chunk_id={hit.chunk_id} document_id={hit.document_id} "
+                    f"pages={hit.page_start}-{hit.page_end}\n{hit.content}"
+                )
+            prompt = (
+                "You are a grounded enterprise sales knowledge assistant. Answer in Chinese. "
+                "Use only the supplied evidence; if it is insufficient, say so explicitly. "
+                "Every factual claim must include citation markers such as [1].\n\n"
+                f"Question: {question}\nEvidence:\n" + "\n\n".join(evidence)
+            )
+            response = self.chat_model.invoke([{"role": "user", "content": prompt}])
+            answer = getattr(response, "content", str(response))
         answer = CitationValidator().validate(answer, citations)
         return {"answer": answer, "citations": citations, "evidence_count": len(hits), "warnings": warnings}
 

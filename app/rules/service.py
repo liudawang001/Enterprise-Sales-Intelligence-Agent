@@ -68,15 +68,16 @@ class InMemoryRuleRepository:
 
 
 class BusinessRuleService:
-    def __init__(self, repository: InMemoryRuleRepository | None = None) -> None:
+    def __init__(self, repository: InMemoryRuleRepository | None = None, *, llm=None) -> None:
         self.repository = repository or InMemoryRuleRepository()
         self.registry = RuleFieldRegistry()
         self.normalizer = RuleNormalizer(self.registry)
         self.validator = RuleValidator(self.registry)
         self.conflicts = RuleConflictService()
         self.compiler = CriteriaCompiler()
-        self.official_extractor = OfficialRuleExtractor()
-        self.suggestion_generator = ModelSuggestionGenerator(registry=self.registry)
+        self.llm = llm
+        self.official_extractor = OfficialRuleExtractor(llm=llm)
+        self.suggestion_generator = ModelSuggestionGenerator(llm=llm, registry=self.registry)
 
     def seed_demo_rules(self) -> None:
         demos = [

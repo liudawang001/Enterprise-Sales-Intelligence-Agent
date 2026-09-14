@@ -16,7 +16,15 @@ class ModelSuggestionGenerator:
     def generate(self, context: dict) -> list[ModelSuggestion]:
         if self.llm is None:
             return []
-        structured = self.llm.with_structured_output(ModelSuggestionResult)
-        result = structured.invoke({"instruction": MODEL_SUGGESTION_PROMPT, "registry_fields": [item.name for item in self.registry.all()], "context": context})
+        prompt = (
+            f"{MODEL_SUGGESTION_PROMPT}\n"
+            f"Registry fields: {[item.name for item in self.registry.all()]}\n"
+            f"Context: {context}"
+        )
+        if hasattr(self.llm, "structured"):
+            result = self.llm.structured(ModelSuggestionResult, prompt, metadata={"operation": "model_suggestion"})
+        else:
+            structured = self.llm.with_structured_output(ModelSuggestionResult)
+            result = structured.invoke({"instruction": MODEL_SUGGESTION_PROMPT, "registry_fields": [item.name for item in self.registry.all()], "context": context})
         valid = [item for item in result.suggestions if self.registry.exists(item.field) and item.evidence_refs]
         return valid[:5]
