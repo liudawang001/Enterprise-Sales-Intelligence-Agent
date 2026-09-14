@@ -258,7 +258,7 @@ not inferred.
 | 15 | Production Compose Smoke | **PASS** | API/frontend images built; PostgreSQL/Redis healthy; API and frontend health endpoints returned 200. Provider calls used validation-only placeholders and were not treated as external-provider quality evidence. |
 | 16 | Backup / Restore | **NOT_RUN** | Requires source/restore PostgreSQL instances; no DB URL configured. |
 | 17 | Secret Scan | **PASS** | Gitleaks pass; no key or response content committed. |
-| 18 | Final Working Tree Clean | **PASS** | Verified clean after final acceptance documentation commit `cd24fc2`. |
+| 18 | Final Working Tree Clean | **PASS** | Verified clean after the final acceptance commit for this RC. |
 
 **RC result: 15 PASS, 0 FAIL, 1 PARTIAL, 2 NOT_RUN.**
 The release decision remains **NO-GO**. A real Research Provider credential set and
