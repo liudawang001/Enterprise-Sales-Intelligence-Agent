@@ -251,7 +251,14 @@ class Settings(BaseSettings):
                 if not self.embedding_base_url or "{" in self.embedding_base_url or "}" in self.embedding_base_url:
                     raise ValueError("EMBEDDING_BASE_URL must be a concrete DashScope URL")
                 parsed_embedding = urlparse(self.embedding_base_url)
-                if parsed_embedding.scheme != "https" or not parsed_embedding.hostname or not (parsed_embedding.hostname.endswith(".aliyuncs.com") or parsed_embedding.hostname == "dashscope.aliyuncs.com"):
+                if (
+                    parsed_embedding.scheme != "https"
+                    or not parsed_embedding.hostname
+                    or not (
+                        parsed_embedding.hostname.endswith(".aliyuncs.com")
+                        or parsed_embedding.hostname == "dashscope.aliyuncs.com"
+                    )
+                ):
                     raise ValueError("EMBEDDING_BASE_URL must be an HTTPS DashScope regional URL")
                 if self.embedding_model != "qwen3.7-text-embedding":
                     raise ValueError("EMBEDDING_MODEL must be qwen3.7-text-embedding")
@@ -265,7 +272,14 @@ class Settings(BaseSettings):
                 if not self.reranker_base_url or "{" in self.reranker_base_url or "}" in self.reranker_base_url:
                     raise ValueError("RERANKER_BASE_URL must be a concrete DashScope URL")
                 parsed_reranker = urlparse(self.reranker_base_url)
-                if parsed_reranker.scheme != "https" or not parsed_reranker.hostname or not (parsed_reranker.hostname.endswith(".aliyuncs.com") or parsed_reranker.hostname == "dashscope.aliyuncs.com"):
+                if (
+                    parsed_reranker.scheme != "https"
+                    or not parsed_reranker.hostname
+                    or not (
+                        parsed_reranker.hostname.endswith(".aliyuncs.com")
+                        or parsed_reranker.hostname == "dashscope.aliyuncs.com"
+                    )
+                ):
                     raise ValueError("RERANKER_BASE_URL must be an HTTPS DashScope regional URL")
                 if self.reranker_model not in {"qwen3-rerank", "gte-rerank-v2", "qwen3-vl-rerank"}:
                     raise ValueError("RERANKER_MODEL is not a supported DashScope text rerank model")
@@ -284,7 +298,11 @@ class Settings(BaseSettings):
             raise ValueError("EMBEDDING_OUTPUT_TYPE must be dense")
         if self.embedding_provider.lower() == "dashscope" and self.embedding_dimension != 1024:
             raise ValueError("DashScope qwen3.7-text-embedding requires EMBEDDING_DIMENSION=1024")
-        if self.reranker_provider.lower() == "dashscope" and self.reranker_model not in {"qwen3-rerank", "gte-rerank-v2", "qwen3-vl-rerank"}:
+        if self.reranker_provider.lower() == "dashscope" and self.reranker_model not in {
+            "qwen3-rerank",
+            "gte-rerank-v2",
+            "qwen3-vl-rerank",
+        }:
             raise ValueError("RERANKER_MODEL is not a supported DashScope text rerank model")
         return self
 

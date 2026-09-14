@@ -22,7 +22,22 @@ class JsonFormatter(logging.Formatter):
             payload.update(
                 {key: value for key, value in context.model_dump(exclude={"principal"}).items() if value is not None}
             )
-        for key in ("node", "provider", "model", "profile", "request_id", "latency_ms", "token_usage", "candidate_count", "returned_count", "truncated_count", "embedding_profile", "error_code", "task_version"):
+        safe_metadata_keys = (
+            "node",
+            "provider",
+            "model",
+            "profile",
+            "request_id",
+            "latency_ms",
+            "token_usage",
+            "candidate_count",
+            "returned_count",
+            "truncated_count",
+            "embedding_profile",
+            "error_code",
+            "task_version",
+        )
+        for key in safe_metadata_keys:
             value = getattr(record, key, None)
             if value is not None:
                 payload[key] = value

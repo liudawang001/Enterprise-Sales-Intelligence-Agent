@@ -84,7 +84,9 @@ def test_production_requires_dashscope_reranker_credentials_and_url() -> None:
     with pytest.raises(ValidationError, match="RERANKER_API_KEY"):
         Settings(**production_settings(embedding_provider="bge", reranker_provider="dashscope"))
     with pytest.raises(ValidationError, match="RERANKER_BASE_URL"):
-        Settings(**production_settings(embedding_provider="bge", reranker_provider="dashscope", reranker_api_key="test-key"))
+        Settings(
+            **production_settings(embedding_provider="bge", reranker_provider="dashscope", reranker_api_key="test-key")
+        )
 
 
 def test_provider_factory_never_silently_falls_back_for_incomplete_named_provider() -> None:

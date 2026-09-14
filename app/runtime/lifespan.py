@@ -11,8 +11,8 @@ from app.infrastructure.circuit_breaker import CircuitBreaker
 from app.infrastructure.events import PostgresTaskEventRepository, TaskEventService
 from app.infrastructure.rate_limit import RedisTokenBucket
 from app.infrastructure.redis import RedisManager
-from app.knowledge.ingestion.service import DocumentIngestionService
 from app.knowledge.ingestion.chunker import ChunkerConfig, StructureAwareChunker
+from app.knowledge.ingestion.service import DocumentIngestionService
 from app.observability.tracing import LangfuseTracing
 from app.persistence.database import (
     create_database_engine,
