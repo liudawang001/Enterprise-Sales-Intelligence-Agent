@@ -95,7 +95,7 @@ def build_main_graph(deps: AgentDependencies, *, checkpointer=None, knowledge_se
     builder = StateGraph(AgentState)
 
     builder.add_node("load_context", lambda state: load_context(state, deps))
-    builder.add_node("classify_intent", classify_intent)
+    builder.add_node("classify_intent", lambda state: classify_intent(state, getattr(deps, "llm", None)))
     builder.add_node("create_lead_task", lambda state: create_lead_task(state, deps))
     builder.add_node("business_qa", build_business_qa_graph(knowledge_service))
     builder.add_node("requirement", build_requirement_graph(deps))

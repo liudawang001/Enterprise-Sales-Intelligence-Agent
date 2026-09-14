@@ -58,12 +58,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         embedding=embedding,
         chunker=StructureAwareChunker(ChunkerConfig(settings.rag_chunk_size, settings.rag_chunk_overlap)),
     )
-    from app.providers.llm.factory import create_chat_model
     application.state.knowledge_service = KnowledgeService(
         knowledge_repository,
         embedding=embedding,
         reranker=build_reranker(settings),
-        chat_model=create_chat_model(provider=settings.llm_provider, model=settings.llm_model, api_key=settings.llm_api_key, base_url=settings.llm_base_url),
+        chat_model=deps.llm,
     )
     deps.knowledge_service = application.state.knowledge_service
     application.state.graph = build_main_graph(deps, knowledge_service=application.state.knowledge_service)

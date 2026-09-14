@@ -53,12 +53,29 @@ class AgentDependencies:
     export_service: object | None = None
     event_repository: object | None = None
     execution_coordinator: object | None = None
+    llm: object | None = None
 
 
 def build_dependencies(settings: Settings | None = None) -> AgentDependencies:
     settings = settings or get_settings()
     repository = MockTaskRepository()
-    rule_service = BusinessRuleService()
+    from app.providers.llm.factory import create_chat_model
+
+    llm = create_chat_model(
+        provider=settings.llm_provider,
+        model=settings.llm_model,
+        api_key=settings.llm_api_key,
+        base_url=settings.llm_base_url,
+        timeout=settings.llm_timeout_seconds,
+        max_retries=settings.llm_max_retries,
+        reasoning_effort=settings.llm_reasoning_effort,
+        thinking_type=settings.llm_thinking_type,
+        max_completion_tokens=settings.llm_max_completion_tokens,
+        max_concurrency=settings.llm_max_concurrency,
+        circuit_failure_threshold=settings.llm_circuit_failure_threshold,
+        circuit_open_seconds=settings.llm_circuit_open_seconds,
+    )
+    rule_service = BusinessRuleService(llm=llm if getattr(llm, "provider", "fake") != "fake" else None)
     rule_service.seed_demo_rules()
     research_service = ResearchService(settings=settings)
     enterprise_repository = InMemoryEnterpriseRepository(research_service.repository)
@@ -81,12 +98,12 @@ def build_dependencies(settings: Settings | None = None) -> AgentDependencies:
         delivery_snapshot_repository=delivery_snapshot_repository,
         export_repository=export_repository,
         use_legacy_mock_services=True,
+        llm=llm,
     )
     from app.knowledge.repository import InMemoryKnowledgeRepository
+    from app.knowledge.rerank.factory import build_reranker
     from app.knowledge.services.knowledge_service import KnowledgeService
     from app.providers.embedding.factory import build_embedding_provider
-    from app.providers.llm.factory import create_chat_model
-    from app.knowledge.rerank.factory import build_reranker
 
     # Keep the in-memory app deterministic while honoring an explicitly selected
     # embedding profile (DashScope/local/fake).
@@ -95,7 +112,7 @@ def build_dependencies(settings: Settings | None = None) -> AgentDependencies:
         knowledge_repository,
         embedding=build_embedding_provider(settings),
         reranker=build_reranker(settings),
-        chat_model=create_chat_model(provider=settings.llm_provider, model=settings.llm_model, api_key=settings.llm_api_key, base_url=settings.llm_base_url),
+        chat_model=llm,
     )
     return deps
 
@@ -119,7 +136,26 @@ def build_postgres_dependencies(settings: Settings, session_factory: object) -> 
     )
 
     repository = PostgresTaskRepository(session_factory)
-    rule_service = BusinessRuleService(PostgresRuleRepository(session_factory))
+    from app.providers.llm.factory import create_chat_model
+
+    llm = create_chat_model(
+        provider=settings.llm_provider,
+        model=settings.llm_model,
+        api_key=settings.llm_api_key,
+        base_url=settings.llm_base_url,
+        timeout=settings.llm_timeout_seconds,
+        max_retries=settings.llm_max_retries,
+        reasoning_effort=settings.llm_reasoning_effort,
+        thinking_type=settings.llm_thinking_type,
+        max_completion_tokens=settings.llm_max_completion_tokens,
+        max_concurrency=settings.llm_max_concurrency,
+        circuit_failure_threshold=settings.llm_circuit_failure_threshold,
+        circuit_open_seconds=settings.llm_circuit_open_seconds,
+    )
+    rule_service = BusinessRuleService(
+        PostgresRuleRepository(session_factory),
+        llm=llm if getattr(llm, "provider", "fake") != "fake" else None,
+    )
     rule_service.seed_demo_rules()
     research_repository = PostgresResearchRepository(session_factory)
     research_service = ResearchService(repository=research_repository, settings=settings)
@@ -143,16 +179,16 @@ def build_postgres_dependencies(settings: Settings, session_factory: object) -> 
         execution_snapshot_repository=execution_snapshot_repository,
         delivery_snapshot_repository=delivery_snapshot_repository,
         export_repository=export_repository,
+        llm=llm,
     )
-    from app.providers.embedding.factory import build_embedding_provider
-    from app.providers.llm.factory import create_chat_model
     from app.knowledge.rerank.factory import build_reranker
+    from app.providers.embedding.factory import build_embedding_provider
 
     deps.knowledge_service = KnowledgeService(
         knowledge_repository,
         embedding=build_embedding_provider(settings),
         reranker=build_reranker(settings),
-        chat_model=create_chat_model(provider=settings.llm_provider, model=settings.llm_model, api_key=settings.llm_api_key, base_url=settings.llm_base_url),
+        chat_model=llm,
     )
     return deps
 
@@ -170,6 +206,7 @@ def _assemble_dependencies(
     execution_snapshot_repository,
     delivery_snapshot_repository,
     export_repository,
+    llm=None,
     use_legacy_mock_services: bool = False,
 ) -> AgentDependencies:
     for profile in demo_scoring_profiles():
@@ -231,6 +268,7 @@ def _assemble_dependencies(
         execution_coordinator=InMemoryExecutionCoordinator(),
         delivery_snapshot_repository=delivery_snapshot_repository,
         task_reference_resolver=TaskReferenceResolver(repository),
+        llm=llm,
     )
     deps.mutation_service = MutationService(
         repository,
