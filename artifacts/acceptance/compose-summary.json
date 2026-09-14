@@ -1,7 +1,7 @@
 {
   "config_render": "PASS",
-  "image_build": "NOT_RUN_DOCKER_API_PERMISSION",
-  "production_smoke": "NOT_RUN",
+  "image_build": "PASS",
+  "production_smoke": "PASS",
   "services": ["postgres", "redis", "api", "frontend"],
-  "limitation": "docker-compose config rendered successfully with validation-only placeholders; Docker API socket access was denied and production credentials were not available."
+  "limitation": "Smoke used an isolated Compose project, temporary host ports, and validation-only provider values; it proves container wiring/health only, not external-provider quality."
 }

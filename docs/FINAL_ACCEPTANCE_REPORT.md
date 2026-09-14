@@ -233,7 +233,8 @@ not inferred.
 | Frontend production build | `npm run build` | **PASS** |
 | Secret scan | `gitleaks detect --source . --no-banner --redact` | **PASS**, no leaks |
 | Compose config | validation-only environment + `docker-compose config --quiet` | **PASS** |
-| Compose build | validation-only environment + `docker-compose build` | **NOT_RUN**; Docker API permission denied |
+| Compose build | validation-only environment + `docker-compose build` | **PASS** |
+| Production Compose service smoke | isolated Compose project; PostgreSQL/Redis/API/frontend health, migration, checkpointer-init | **PASS**; migration reached `0010_embedding_profile`, API/frontend `/health/live` returned 200 |
 | Real Research Provider Golden E2E | `pytest -m external tests/test_phase4_external.py` | **NOT_RUN**; required credentials unset |
 
 ### Current 18 Mandatory Gates
@@ -253,12 +254,12 @@ not inferred.
 | 11 | UI / Excel Snapshot Consistency | **PASS** | Delivery evaluation and prior browser evidence pass. |
 | 12 | Excel Injection Protection | **PASS** | Export security regression pass. |
 | 13 | SSRF Regression | **PASS** | SSRF security regression pass. |
-| 14 | Clean DB Migration | **NOT_RUN** | No isolated database service available in this session. |
-| 15 | Production Compose Smoke | **NOT_RUN** | Config render pass; build/service smoke blocked by Docker API permissions. |
+| 14 | Clean DB Migration | **PASS** | Isolated Compose PostgreSQL migrated from empty volume through `0010_embedding_profile`. |
+| 15 | Production Compose Smoke | **PASS** | API/frontend images built; PostgreSQL/Redis healthy; API and frontend health endpoints returned 200. Provider calls used validation-only placeholders and were not treated as external-provider quality evidence. |
 | 16 | Backup / Restore | **NOT_RUN** | Requires source/restore PostgreSQL instances; no DB URL configured. |
 | 17 | Secret Scan | **PASS** | Gitleaks pass; no key or response content committed. |
 | 18 | Final Working Tree Clean | **PASS** | Verified clean after final acceptance documentation commit `cd24fc2`. |
 
-**RC result: 13 PASS, 0 FAIL, 1 PARTIAL, 4 NOT_RUN.**
+**RC result: 15 PASS, 0 FAIL, 1 PARTIAL, 2 NOT_RUN.**
 The release decision remains **NO-GO**. A real Research Provider credential set and
 authorized PostgreSQL/Redis/Docker services are required before any gate can be promoted.

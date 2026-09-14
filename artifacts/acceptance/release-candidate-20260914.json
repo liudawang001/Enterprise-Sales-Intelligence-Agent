@@ -15,8 +15,8 @@
   },
   "frontend": {"tests_passed": 7, "build": "PASS"},
   "secret_scan": "PASS",
-  "compose": {"config_render": "PASS", "image_build": "NOT_RUN_DOCKER_API_PERMISSION", "production_smoke": "NOT_RUN"},
+  "compose": {"config_render": "PASS", "image_build": "PASS", "production_smoke": "PASS", "migration_head": "0010_embedding_profile", "checkpointer_init": "PASS", "api_health": "PASS", "frontend_health": "PASS"},
   "research_provider_golden_e2e": "NOT_RUN_NO_CREDENTIALS",
-  "mandatory_gates": {"pass": 13, "fail": 0, "partial": 1, "not_run": 4, "not_run_gates": [2, 14, 15, 16]},
+  "mandatory_gates": {"pass": 15, "fail": 0, "partial": 1, "not_run": 2, "not_run_gates": [2, 16]},
   "release_decision": "NO-GO"
 }

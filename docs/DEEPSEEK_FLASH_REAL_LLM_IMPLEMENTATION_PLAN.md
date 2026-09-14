@@ -409,7 +409,7 @@ LLM_THINKING_TYPE=disabled
 - 使用临时环境变量完成一次真实 `deepseek-flash` 文本 + JSON smoke，结果为 `ok=true`；未记录响应正文或 API Key。
 - 使用合成知识片段完成一次真实 Business QA 闭环，Evidence count=1、Citation count=1。
 
-本轮已补齐：LLM 调用并发上限、进程内熔断与 LLM 指标；现有 Redis 分布式限流/熔断、任务 SSE、Golden API/UI E2E 已复用并完成回归。仍需在 Release Candidate 中完成真实 Intent/Requirement/Rules/Research Golden E2E、LLM SSE 逐 token 输出（当前任务事件 SSE 不等同于 LLM token 流），以及 `FINAL_ACCEPTANCE_REPORT.md` 中的 18 个 Mandatory Gates 复验。未完成项不能标记为 Release PASS。
+本轮已补齐：LLM 调用并发上限、进程内熔断与 LLM 指标、DeepSeek `astream` 逐 token SSE（`POST /api/chat/stream`），并完成 Production Compose 镜像、migration、checkpointer、API/frontend health smoke。仍需在有授权凭据和持久化环境的 Release Candidate 中完成真实 Intent/Requirement/Rules/Research Golden E2E、restart/backup-restore 复验；未完成项不能标记为 Release PASS。
 
 ## 13.1 后续 Release Commit 计划（执行顺序）
 
