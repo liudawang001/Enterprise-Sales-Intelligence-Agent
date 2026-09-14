@@ -179,6 +179,26 @@ substitute for production Compose or external-provider smoke.
 **Round 2 result: 14 PASS, 0 FAIL, 0 PARTIAL, 4 NOT_RUN.** The all-PASS release
 condition is not met.
 
+## DeepSeek Flash real LLM implementation update — 2026-09-14
+
+The real LLM implementation was added after Round 2 without changing the historical
+acceptance results above. The following checks were executed:
+
+| Check | Result |
+|---|---|
+| DeepSeek `deepseek-flash` text smoke via `https://api.deepseek.com` | **PASS** |
+| DeepSeek JSON mode + Pydantic validation | **PASS** |
+| Synthetic Evidence-grounded Business QA with citation validation | **PASS** |
+| LLM provider unit tests, factory, circuit protection | **PASS** |
+| Full Python regression after implementation | **193 passed, 19 skipped, 3 deselected** |
+| Production Compose and real external Research Provider Golden E2E | **NOT_RUN** |
+| LLM token SSE stream | **NOT_RUN** |
+
+The implementation uses environment-only credentials and does not record the API key or
+response content. These checks do not authorize a release: all 18 Mandatory Gates still
+require a fresh Release Candidate run, and any `NOT_RUN`, `PARTIAL`, or `FAIL` keeps the
+decision at **NO-GO**.
+
 ### Provider and production smoke
 
 Real provider smoke is **NOT_RUN**: `ENTERPRISE_API_KEY`, `AMAP_API_KEY`,
