@@ -257,7 +257,7 @@ not inferred.
 | 15 | Production Compose Smoke | **NOT_RUN** | Config render pass; build/service smoke blocked by Docker API permissions. |
 | 16 | Backup / Restore | **NOT_RUN** | Requires source/restore PostgreSQL instances; no DB URL configured. |
 | 17 | Secret Scan | **PASS** | Gitleaks pass; no key or response content committed. |
-| 18 | Final Working Tree Clean | **PASS** | Verified clean after commit `5d077a8`; documentation/artifact commit is the only remaining local change. |
+| 18 | Final Working Tree Clean | **PASS** | Verified clean after final acceptance documentation commit `cd24fc2`. |
 
 **RC result: 13 PASS, 0 FAIL, 1 PARTIAL, 4 NOT_RUN.**
 The release decision remains **NO-GO**. A real Research Provider credential set and
