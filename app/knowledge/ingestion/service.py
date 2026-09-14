@@ -1,3 +1,4 @@
+import asyncio
 from datetime import date
 from typing import Any
 
@@ -38,11 +39,27 @@ class DocumentIngestionService:
             document.status = DocumentStatus.INDEXING
             self.repository.update_document(document)
             chunks = self.chunker.chunk(parsed, document_metadata={"document_id": str(document.id), "document_title": document.title, "business": business, "document_type": document_type, "region": region, "authority": authority.value, "version": version, "effective_from": effective_from.isoformat() if effective_from else None, "effective_to": effective_to.isoformat() if effective_to else None, "access_scope": access_scope, "workspace_id": document.workspace_id})
-            vectors = self.embedding.embed_documents([chunk.content for chunk in chunks])
+            texts = [chunk.content for chunk in chunks]
+            if hasattr(self.embedding, "aembed_documents"):
+                vectors = await self.embedding.aembed_documents(texts)
+            else:
+                vectors = await asyncio.to_thread(self.embedding.embed_documents, texts)
+            if len(vectors) != len(chunks):
+                raise ValueError("EMBEDDING_RESULT_COUNT_MISMATCH")
             for chunk, vector in zip(chunks, vectors, strict=True):
                 chunk.embedding = vector
+                profile = getattr(self.embedding, "profile_version", None)
+                if profile:
+                    chunk.metadata["embedding_profile_version"] = profile
+                    chunk.metadata["embedding_model"] = getattr(self.embedding, "model", None)
             self.repository.replace_chunks(document.id, chunks)
             document.chunk_count = len(chunks)
+            profile = getattr(self.embedding, "profile_version", None)
+            if profile:
+                document.embedding_provider = getattr(self.embedding, "provider", "")
+                document.embedding_model = getattr(self.embedding, "model", "")
+                document.embedding_dimension = getattr(self.embedding, "dimension", None)
+                document.embedding_profile_version = profile
             document.status = DocumentStatus.READY
             return self.repository.update_document(document)
         except Exception as exc:
@@ -57,8 +74,34 @@ class DocumentIngestionService:
         document = self.repository.get_document(document_id)
         if not document:
             raise KeyError(str(document_id))
-        content = open(document.file_path, "rb").read()
-        return await self.ingest(filename=document.original_filename, content=content, title=document.title, business=document.business, document_type=document.document_type, region=document.region, authority=document.authority, version=document.version, effective_from=document.effective_from, effective_to=document.effective_to, access_scope=document.access_scope, workspace_id=document.workspace_id)
+        try:
+            # Reindex in place so a READY document with the same file hash is not
+            # short-circuited by the upload idempotency check.
+            parsed = await self.parser.parse(document.file_path)
+            chunks = self.chunker.chunk(parsed, document_metadata={"document_id": str(document.id), "document_title": document.title, "business": document.business, "document_type": document.document_type, "region": document.region, "authority": document.authority.value, "version": document.version, "effective_from": document.effective_from.isoformat() if document.effective_from else None, "effective_to": document.effective_to.isoformat() if document.effective_to else None, "access_scope": document.access_scope, "workspace_id": document.workspace_id})
+            texts = [chunk.content for chunk in chunks]
+            vectors = await self.embedding.aembed_documents(texts) if hasattr(self.embedding, "aembed_documents") else await asyncio.to_thread(self.embedding.embed_documents, texts)
+            if len(vectors) != len(chunks):
+                raise ValueError("EMBEDDING_RESULT_COUNT_MISMATCH")
+            profile = getattr(self.embedding, "profile_version", None)
+            for chunk, vector in zip(chunks, vectors, strict=True):
+                chunk.embedding = vector
+                if profile:
+                    chunk.metadata["embedding_profile_version"] = profile
+            document.page_count = len(parsed.pages)
+            document.chunk_count = len(chunks)
+            document.status = DocumentStatus.READY
+            if profile:
+                document.embedding_provider = getattr(self.embedding, "provider", "")
+                document.embedding_model = getattr(self.embedding, "model", "")
+                document.embedding_dimension = getattr(self.embedding, "dimension", None)
+                document.embedding_profile_version = profile
+            self.repository.replace_chunks(document.id, chunks)
+            return self.repository.update_document(document)
+        except Exception as exc:
+            document.status = DocumentStatus.FAILED
+            document.error_message = str(exc)
+            return self.repository.update_document(document)
 
     def disable(self, document_id) -> KnowledgeDocument:
         document = self.repository.get_document(document_id)

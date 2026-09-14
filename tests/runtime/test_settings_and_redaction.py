@@ -75,6 +75,18 @@ def test_production_rejects_fake_or_unsafe_runtime_configuration(overrides, erro
         Settings(**production_settings(**overrides))
 
 
+def test_production_rejects_fake_reranker() -> None:
+    with pytest.raises(ValidationError, match="real reranker provider"):
+        Settings(**production_settings(embedding_provider="bge", reranker_provider="fake"))
+
+
+def test_production_requires_dashscope_reranker_credentials_and_url() -> None:
+    with pytest.raises(ValidationError, match="RERANKER_API_KEY"):
+        Settings(**production_settings(embedding_provider="bge", reranker_provider="dashscope"))
+    with pytest.raises(ValidationError, match="RERANKER_BASE_URL"):
+        Settings(**production_settings(embedding_provider="bge", reranker_provider="dashscope", reranker_api_key="test-key"))
+
+
 def test_provider_factory_never_silently_falls_back_for_incomplete_named_provider() -> None:
     settings = Settings(enterprise_provider="commercial", enterprise_api_base_url="", enterprise_api_key="")
     with pytest.raises(ValueError, match="ENTERPRISE_PROVIDER_CONFIGURATION_INVALID"):

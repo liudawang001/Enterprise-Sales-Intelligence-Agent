@@ -112,3 +112,84 @@ The workspace initial page loaded with zero console errors and screenshot [initi
 3. Re-run all 18 Mandatory Gates, then only if every gate is PASS prepare `v1.0.0`.
 
 Until then, release remains blocked.
+
+## Round 2 revalidation — 2026-09-13 (Asia/Shanghai)
+
+This section is appended to preserve the Round 1 failure history, FA-001 remediation,
+and the Phase 2 recovery report. It records only commands and browser actions actually
+executed in this Round 2 acceptance pass. No release tag, GitHub Release, or push was
+created by this pass.
+
+### Current regression evidence
+
+| Area | Command / scenario | Result |
+|---|---|---|
+| Python full regression | `pytest -q` | **173 passed, 19 skipped, 1 deselected** |
+| Integration / recovery / fault selection | `pytest -q -m 'integration or recovery or fault'` | **6 passed, 19 skipped, 168 deselected**; DB-backed cases skipped because `TEST_DATABASE_URL` and `TEST_REDIS_URL` were unset |
+| Security selection | `pytest -q tests/security tests/runtime/test_settings_and_redaction.py tests/exports/test_export_security.py` | **19 passed** |
+| Frontend tests | `npm test -- --run` | **7 passed** |
+| Frontend build | `npm run build` | **PASS** |
+| RAG / rules / research / entity / evidence-scoring / mutation / delivery evaluation | seven `python -m evals...` commands | **PASS**; all reported deterministic fixture metrics were 1.0, with mutation unsafe-under-reexecution `0.0` |
+| Secret scan | `gitleaks detect --source . --no-banner --redact` | **PASS**, 71 commits scanned, no leaks |
+| Python dependency audit | `pip-audit` | **NOT_RUN**: DNS/network unavailable |
+| Frontend dependency audit | `npm audit --omit=dev` | **NOT_RUN**: DNS/network unavailable |
+| Alembic head | `alembic heads` | **PASS**, `0009_fa001_durable_business_state` |
+| Full-repository lint | `ruff check .` | **FAIL**, 547 existing findings; no unrelated baseline formatting was changed |
+
+### Browser full flow
+
+The local FastAPI/Vite application was exercised in the Codex in-app browser using
+deterministic fake providers. The required CLI launcher `start-chrome-debug` was not
+installed, so the in-app browser was used as a documented fallback; no external site or
+credential was accessed. The flow completed as follows:
+
+1. Workspace opened and a new chat request completed to Task `996e5c48-2238-4774-8c1e-8c4c4d54005c`, v2.
+2. Lead table displayed 3 rows; the first lead opened its detail drawer with field status, Evidence, conflicts, and Score Breakdown.
+3. XLSX export panel generated `集团V网_上海松江_TaskV2_Top3_20260913.xlsx`; the export history showed `COMPLETED` and a download link.
+4. Historical v1 was selected and displayed `Historical Version · 只读查看 v1`.
+5. A mutation `把目标数量改为2家` created v3 with `Top 2` and `最近变更 DISPLAY_ONLY`.
+6. Browser console error query returned an empty list.
+
+Browser gate result: **PASS** for the deterministic UI / Excel workflow. This does not
+substitute for production Compose or external-provider smoke.
+
+### Round 2 Mandatory Release Gates
+
+| # | Gate | Round 2 status | Evidence / limitation |
+|---:|---|---|---|
+| 1 | Main Full E2E | **PASS** | Local API and browser golden flow completed with deterministic providers. |
+| 2 | Clarification Restart Resume | **NOT_RUN** | Requires DB-backed fresh-process rerun; this environment had no test DB URL. Historical Phase 2 report remains PASS. |
+| 3 | Rule Conflict | **PASS** | Rule evaluation and conflict tests passed. |
+| 4 | Evidence Traceability | **PASS** | Evidence evaluation and browser lead detail lineage passed. |
+| 5 | Deterministic Scoring | **PASS** | Scoring evaluation and browser Score Breakdown passed. |
+| 6 | Partial Re-execution | **PASS** | Mutation evaluation plus browser v3 `DISPLAY_ONLY` mutation passed. |
+| 7 | Unsafe Under-reexecution = 0 | **PASS** | Deterministic evaluation reported `0.0`. |
+| 8 | Stale Task Promotion Prevention | **PASS** | Full regression and mutation/version-fence evaluation passed. |
+| 9 | Stale Worker Fence Rejection | **PASS** | Full regression fault/runtime coverage passed. |
+| 10 | Workspace Isolation | **PASS** | Security selection passed. |
+| 11 | UI / Excel Snapshot Consistency | **PASS** | Delivery evaluation and browser frozen-version export flow passed. |
+| 12 | Excel Injection Protection | **PASS** | Export security tests and delivery evaluation passed. |
+| 13 | SSRF Regression | **PASS** | Security/runtime regression passed. |
+| 14 | Clean DB Migration | **NOT_RUN** | No reachable `TEST_DATABASE_URL`; only Alembic head was verified. |
+| 15 | Production Compose Smoke | **NOT_RUN** | `docker compose` is unavailable in this environment; Docker API access is also unavailable. |
+| 16 | Backup / Restore | **NOT_RUN** | Requires PostgreSQL source/restore databases and artifact verification; no DB URL was configured. Historical Phase 2 report remains PASS. |
+| 17 | Secret Scan | **PASS** | Gitleaks completed with no leaks. Dependency audits were separately NOT_RUN due network failure. |
+| 18 | Final Working Tree Clean | **PASS** | Verified after the Round 2 report commit below. |
+
+**Round 2 result: 14 PASS, 0 FAIL, 0 PARTIAL, 4 NOT_RUN.** The all-PASS release
+condition is not met.
+
+### Provider and production smoke
+
+Real provider smoke is **NOT_RUN**: `ENTERPRISE_API_KEY`, `AMAP_API_KEY`,
+`TAVILY_API_KEY`, `FIRECRAWL_API_KEY`, and `LLM_API_KEY` were all unset. Production-like
+Compose smoke is **NOT_RUN** because the `docker compose` plugin is not installed and
+the Docker API socket is not accessible. No placeholder credentials were treated as
+valid smoke credentials.
+
+### Round 2 release decision
+
+**Release Decision: NO-GO.** Remaining blockers are the four NOT_RUN mandatory gates:
+DB-backed clarification restart, clean DB migration, production Compose smoke, and backup /
+restore. Real provider smoke and dependency audits also need a credentialed/network-enabled rerun.
+No `v1.0.0` tag or GitHub Release is authorized.

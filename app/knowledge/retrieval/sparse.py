@@ -12,6 +12,9 @@ class PostgresSparseRetriever:
         self.tokenizer = tokenizer
 
     def search(self, query: str, *, knowledge_filter: KnowledgeFilter, top_k: int) -> list[RetrievalHit]:
+        sql_search = getattr(self.repository, "sparse_search", None)
+        if sql_search is not None:
+            return sql_search(query, tokenizer=self.tokenizer, knowledge_filter=knowledge_filter, top_k=top_k)
         terms = set(self.tokenizer.tokenize(query).split())
         scored: list[tuple[float, object]] = []
         for chunk in self.repository.list_chunks(knowledge_filter=knowledge_filter):

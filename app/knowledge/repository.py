@@ -89,4 +89,6 @@ class InMemoryKnowledgeRepository:
                 return False
             if doc.effective_to and doc.effective_to < at:
                 return False
+        if knowledge_filter.embedding_profile_version and doc.embedding_profile_version != knowledge_filter.embedding_profile_version:
+            return False
         return True

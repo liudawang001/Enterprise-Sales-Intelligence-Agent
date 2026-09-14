@@ -25,6 +25,7 @@ class KnowledgeService:
         self.embedding = embedding or DeterministicFakeEmbedding()
         self.reranker = reranker or FakeReranker()
         self.chat_model = chat_model or FakeChatModel()
+        self.embedding_profile_version = getattr(self.embedding, "profile_version", None)
         self.filter_builder = MetadataFilterBuilder()
         self.hybrid = HybridRetriever(
             DenseRetriever(repository, self.embedding),
@@ -52,7 +53,7 @@ class KnowledgeService:
         return KnowledgeQuery(raw_query=raw_query, rewritten_query=rewritten, business=business, region=region, as_of_date=as_of_date, current_only=as_of_date is None, workspace_id=workspace_id)
 
     def retrieve(self, query: KnowledgeQuery, *, top_k: int = 6) -> tuple[list[RetrievalHit], list[str]]:
-        filter_ = self.filter_builder.build(query)
+        filter_ = self.filter_builder.build(query, embedding_profile_version=self.embedding_profile_version)
         # Keep the sync Graph path deterministic; the same HybridRetriever supports async callers.
         dense = self.hybrid.dense.search(query.rewritten_query, knowledge_filter=filter_, top_k=20)
         sparse = self.hybrid.sparse.search(query.rewritten_query, knowledge_filter=filter_, top_k=20)
@@ -75,6 +76,6 @@ class KnowledgeService:
         return {"answer": answer, "citations": citations, "evidence_count": len(hits), "warnings": warnings}
 
     async def retrieve_async(self, query: KnowledgeQuery, *, top_k: int = 6) -> tuple[list[RetrievalHit], list[str]]:
-        filter_ = self.filter_builder.build(query)
+        filter_ = self.filter_builder.build(query, embedding_profile_version=self.embedding_profile_version)
         hits, warnings = await self.hybrid.search(query.rewritten_query, knowledge_filter=filter_, fusion_top_k=12, rerank_top_k=top_k)
         return hits, warnings

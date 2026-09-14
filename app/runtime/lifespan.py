@@ -12,6 +12,7 @@ from app.infrastructure.events import PostgresTaskEventRepository, TaskEventServ
 from app.infrastructure.rate_limit import RedisTokenBucket
 from app.infrastructure.redis import RedisManager
 from app.knowledge.ingestion.service import DocumentIngestionService
+from app.knowledge.ingestion.chunker import ChunkerConfig, StructureAwareChunker
 from app.observability.tracing import LangfuseTracing
 from app.persistence.database import (
     create_database_engine,
@@ -95,7 +96,11 @@ def application_lifespan(settings):
                 app.state.dependencies = deps
                 app.state.knowledge_repository = deps.knowledge_service.repository
                 app.state.knowledge_service = deps.knowledge_service
-                app.state.ingestion_service = DocumentIngestionService(app.state.knowledge_repository)
+                app.state.ingestion_service = DocumentIngestionService(
+                    app.state.knowledge_repository,
+                    embedding=app.state.knowledge_service.embedding,
+                    chunker=StructureAwareChunker(ChunkerConfig(settings.rag_chunk_size, settings.rag_chunk_overlap)),
+                )
                 app.state.business_task_store = None
                 app.state.event_repository = PostgresTaskEventRepository(create_session_factory(engine))
                 deps.event_repository = app.state.event_repository

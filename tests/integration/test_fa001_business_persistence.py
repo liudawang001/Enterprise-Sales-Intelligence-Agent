@@ -65,6 +65,8 @@ def test_postgres_runtime_fails_startup_instead_of_falling_back_to_memory(tmp_pa
         tavily_api_key="configured-tavily-key",
         web_fetch_provider="firecrawl",
         firecrawl_api_key="configured-firecrawl-key",
+        embedding_provider="bge",
+        reranker_provider="bge",
         export_dir=str(tmp_path / "exports"),
     )
 

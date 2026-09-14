@@ -68,7 +68,7 @@ def build_dependencies(settings: Settings | None = None) -> AgentDependencies:
     execution_snapshot_repository = InMemoryExecutionSnapshotRepository()
     delivery_snapshot_repository = InMemoryDeliverySnapshotRepository()
     export_repository = InMemoryExportRepository()
-    return _assemble_dependencies(
+    deps = _assemble_dependencies(
         settings,
         repository=repository,
         rule_service=rule_service,
@@ -82,6 +82,22 @@ def build_dependencies(settings: Settings | None = None) -> AgentDependencies:
         export_repository=export_repository,
         use_legacy_mock_services=True,
     )
+    from app.knowledge.repository import InMemoryKnowledgeRepository
+    from app.knowledge.services.knowledge_service import KnowledgeService
+    from app.providers.embedding.factory import build_embedding_provider
+    from app.providers.llm.factory import create_chat_model
+    from app.knowledge.rerank.factory import build_reranker
+
+    # Keep the in-memory app deterministic while honoring an explicitly selected
+    # embedding profile (DashScope/local/fake).
+    knowledge_repository = InMemoryKnowledgeRepository()
+    deps.knowledge_service = KnowledgeService(
+        knowledge_repository,
+        embedding=build_embedding_provider(settings),
+        reranker=build_reranker(settings),
+        chat_model=create_chat_model(provider=settings.llm_provider, model=settings.llm_model, api_key=settings.llm_api_key, base_url=settings.llm_base_url),
+    )
+    return deps
 
 
 def build_postgres_dependencies(settings: Settings, session_factory: object) -> AgentDependencies:
@@ -128,7 +144,16 @@ def build_postgres_dependencies(settings: Settings, session_factory: object) -> 
         delivery_snapshot_repository=delivery_snapshot_repository,
         export_repository=export_repository,
     )
-    deps.knowledge_service = KnowledgeService(knowledge_repository)
+    from app.providers.embedding.factory import build_embedding_provider
+    from app.providers.llm.factory import create_chat_model
+    from app.knowledge.rerank.factory import build_reranker
+
+    deps.knowledge_service = KnowledgeService(
+        knowledge_repository,
+        embedding=build_embedding_provider(settings),
+        reranker=build_reranker(settings),
+        chat_model=create_chat_model(provider=settings.llm_provider, model=settings.llm_model, api_key=settings.llm_api_key, base_url=settings.llm_base_url),
+    )
     return deps
 
 

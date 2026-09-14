@@ -14,7 +14,7 @@ class PGVectorStoreFactory:
         engine = PGEngine.from_connection_string(url=self.connection)
         await engine.ainit_vectorstore_table(
             table_name=self.collection_name,
-            vector_size=1024,
+            vector_size=getattr(self.embedding, "dimension", 1024),
             id_column="id",
             content_column="content",
             embedding_column="embedding",
