@@ -190,9 +190,11 @@ acceptance results above. The following checks were executed:
 | DeepSeek JSON mode + Pydantic validation | **PASS** |
 | Synthetic Evidence-grounded Business QA with citation validation | **PASS** |
 | LLM provider unit tests, factory, circuit protection | **PASS** |
-| Full Python regression after implementation | **193 passed, 19 skipped, 3 deselected** |
-| Production Compose and real external Research Provider Golden E2E | **NOT_RUN** |
-| LLM token SSE stream | **NOT_RUN** |
+| Full Python regression after implementation | **196 passed, 19 skipped, 3 deselected** |
+| LLM token SSE (`POST /api/chat/stream`, token/done/error protocol) | **PASS** |
+| Production Compose config render | **PASS** (`docker-compose config --quiet`) |
+| Production Compose image/service smoke | **NOT_RUN** (Docker API permission denied) |
+| Real external Research Provider Golden E2E | **NOT_RUN** (credentials absent) |
 
 The implementation uses environment-only credentials and does not record the API key or
 response content. These checks do not authorize a release: all 18 Mandatory Gates still
@@ -213,3 +215,50 @@ valid smoke credentials.
 DB-backed clarification restart, clean DB migration, production Compose smoke, and backup /
 restore. Real provider smoke and dependency audits also need a credentialed/network-enabled rerun.
 No `v1.0.0` tag or GitHub Release is authorized.
+
+## Release Candidate revalidation — 2026-09-14 (Asia/Shanghai)
+
+This section records the current working-tree validation on branch `main` after adding
+the provider-neutral LLM token stream. Commands were executed locally and outputs were
+not inferred.
+
+### Executed checks
+
+| Area | Command / scenario | Result |
+|---|---|---|
+| Python full regression | `pytest -q` | **196 passed, 19 skipped, 3 deselected** |
+| LLM token SSE | `pytest -q tests/providers/test_deepseek_llm.py tests/api/test_chat.py` | **8 passed**; `token`/`done` protocol and provider fallback covered |
+| Evaluation suite | seven `python -m evals...` commands (RAG, rules, research, entity, evidence/scoring, mutation, delivery) | **PASS**; all deterministic metrics 1.0; unsafe-under-reexecution `0.0` |
+| Frontend tests | `npm test -- --run` | **7 passed** |
+| Frontend production build | `npm run build` | **PASS** |
+| Secret scan | `gitleaks detect --source . --no-banner --redact` | **PASS**, no leaks |
+| Compose config | validation-only environment + `docker-compose config --quiet` | **PASS** |
+| Compose build | validation-only environment + `docker-compose build` | **NOT_RUN**; Docker API permission denied |
+| Real Research Provider Golden E2E | `pytest -m external tests/test_phase4_external.py` | **NOT_RUN**; required credentials unset |
+
+### Current 18 Mandatory Gates
+
+| # | Gate | RC status | Evidence / limitation |
+|---:|---|---|---|
+| 1 | Main Full E2E | **PARTIAL** | Local deterministic API/UI and DeepSeek smoke pass; real Research Provider Golden E2E not run. |
+| 2 | Clarification Restart Resume | **NOT_RUN** | Requires reachable PostgreSQL/Redis test services; URLs unset. |
+| 3 | Rule Conflict | **PASS** | Rule/conflict regression and evaluation pass. |
+| 4 | Evidence Traceability | **PASS** | Evidence evaluation and citation checks pass. |
+| 5 | Deterministic Scoring | **PASS** | Scoring evaluation pass. |
+| 6 | Partial Re-execution | **PASS** | Mutation evaluation pass. |
+| 7 | Unsafe Under-reexecution = 0 | **PASS** | Measured `0.0`. |
+| 8 | Stale Task Promotion Prevention | **PASS** | Version-fence regression pass. |
+| 9 | Stale Worker Fence Rejection | **PASS** | Runtime/fault regression pass. |
+| 10 | Workspace Isolation | **PASS** | Security regression pass. |
+| 11 | UI / Excel Snapshot Consistency | **PASS** | Delivery evaluation and prior browser evidence pass. |
+| 12 | Excel Injection Protection | **PASS** | Export security regression pass. |
+| 13 | SSRF Regression | **PASS** | SSRF security regression pass. |
+| 14 | Clean DB Migration | **NOT_RUN** | No isolated database service available in this session. |
+| 15 | Production Compose Smoke | **NOT_RUN** | Config render pass; build/service smoke blocked by Docker API permissions. |
+| 16 | Backup / Restore | **NOT_RUN** | Requires source/restore PostgreSQL instances; no DB URL configured. |
+| 17 | Secret Scan | **PASS** | Gitleaks pass; no key or response content committed. |
+| 18 | Final Working Tree Clean | **PASS** | Verified clean after commit `5d077a8`; documentation/artifact commit is the only remaining local change. |
+
+**RC result: 13 PASS, 0 FAIL, 1 PARTIAL, 4 NOT_RUN.**
+The release decision remains **NO-GO**. A real Research Provider credential set and
+authorized PostgreSQL/Redis/Docker services are required before any gate can be promoted.

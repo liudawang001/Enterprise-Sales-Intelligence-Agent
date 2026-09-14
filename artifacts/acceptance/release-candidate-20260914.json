@@ -1,0 +1,22 @@
+{
+  "executed_at": "2026-09-14T21:05:00+08:00",
+  "branch": "main",
+  "python": {"passed": 196, "skipped": 19, "deselected": 3},
+  "llm_token_sse": {"status": "PASS", "endpoint": "POST /api/chat/stream", "events": ["token", "done", "error"]},
+  "evaluations": {
+    "rag": "PASS",
+    "rules": "PASS",
+    "research": "PASS",
+    "entity": "PASS",
+    "evidence_scoring": "PASS",
+    "mutation": "PASS",
+    "delivery": "PASS",
+    "unsafe_under_reexecution_rate": 0.0
+  },
+  "frontend": {"tests_passed": 7, "build": "PASS"},
+  "secret_scan": "PASS",
+  "compose": {"config_render": "PASS", "image_build": "NOT_RUN_DOCKER_API_PERMISSION", "production_smoke": "NOT_RUN"},
+  "research_provider_golden_e2e": "NOT_RUN_NO_CREDENTIALS",
+  "mandatory_gates": {"pass": 13, "fail": 0, "partial": 1, "not_run": 4, "not_run_gates": [2, 14, 15, 16]},
+  "release_decision": "NO-GO"
+}

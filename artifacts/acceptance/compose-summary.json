@@ -1,7 +1,7 @@
 {
   "config_render": "PASS",
-  "image_build": "NOT_RUN",
+  "image_build": "NOT_RUN_DOCKER_API_PERMISSION",
   "production_smoke": "NOT_RUN",
   "services": ["postgres", "redis", "api", "frontend"],
-  "limitation": "Docker API socket access was denied in this session; production credentials were not available."
+  "limitation": "docker-compose config rendered successfully with validation-only placeholders; Docker API socket access was denied and production credentials were not available."
 }

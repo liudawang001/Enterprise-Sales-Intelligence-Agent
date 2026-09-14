@@ -428,4 +428,6 @@ LLM_THINKING_TYPE=disabled
 11. `docs: record DeepSeek real LLM acceptance` — 记录真实调用元数据、测试结果、NOT_RUN 项与回滚说明。
 12. `chore(release): prepare v1.0.0 real LLM configuration` — 仅在 18 个 Mandatory Gates 全部 PASS 后更新版本和 Release 配置。
 
+13. `feat(api): stream LLM tokens over SSE` — DeepSeek `astream`、`POST /api/chat/stream` 的 `token/done/error` 事件、断开清理与 API/adapter 测试。
+
 每个 commit 合并前必须执行对应测试；第 10 个 commit 的真实结果不得与 Fake fixture 混写；第 11 个 commit 不得预先声明 PASS；第 12 个 commit 不得包含任何凭据。
