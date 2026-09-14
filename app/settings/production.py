@@ -132,6 +132,15 @@ class Settings(BaseSettings):
     llm_model: str = ""
     llm_api_key: str = ""
     llm_base_url: str = ""
+    llm_timeout_seconds: float = Field(default=60.0, gt=0)
+    llm_max_retries: int = Field(default=2, ge=0, le=10)
+    llm_reasoning_effort: str = ""
+    llm_thinking_type: str = "disabled"
+    llm_max_completion_tokens: int | None = Field(default=None, ge=1)
+    llm_structured_max_retries: int = Field(default=1, ge=0, le=3)
+    llm_max_concurrency: int = Field(default=8, ge=1, le=100)
+    llm_circuit_failure_threshold: int = Field(default=3, ge=1, le=20)
+    llm_circuit_open_seconds: float = Field(default=30.0, gt=0)
     embedding_provider: str = "fake"
     embedding_model: str = "qwen3.7-text-embedding"
     embedding_api_key: SecretStr = SecretStr("")
@@ -283,6 +292,22 @@ class Settings(BaseSettings):
                     raise ValueError("RERANKER_BASE_URL must be an HTTPS DashScope regional URL")
                 if self.reranker_model not in {"qwen3-rerank", "gte-rerank-v2", "qwen3-vl-rerank"}:
                     raise ValueError("RERANKER_MODEL is not a supported DashScope text rerank model")
+            if self.llm_provider.lower() in {"fake", "deterministic_fake"}:
+                raise ValueError("real LLM provider is required in production")
+            if self.llm_provider.lower() == "deepseek":
+                if not self.llm_api_key:
+                    raise ValueError("LLM_API_KEY is required for DeepSeek")
+                if self.llm_model != "deepseek-flash":
+                    raise ValueError("LLM_MODEL must be deepseek-flash for DeepSeek provider")
+                if self.llm_base_url.rstrip("/") != "https://api.deepseek.com":
+                    raise ValueError("LLM_BASE_URL must be https://api.deepseek.com for DeepSeek provider")
+            elif self.llm_provider.lower() == "openai_compatible":
+                # Preserve the historical generic provider contract. New
+                # DeepSeek deployments should use the strict `deepseek` mode
+                # above, which requires all three concrete values.
+                pass
+            elif self.llm_provider.lower() not in {"deepseek", "openai_compatible"}:
+                raise ValueError(f"LLM_PROVIDER_UNSUPPORTED: {self.llm_provider}")
         if self.run_heartbeat_seconds >= self.run_lease_seconds:
             raise ValueError("RUN_HEARTBEAT_SECONDS must be lower than RUN_LEASE_SECONDS")
         for name, value in {
